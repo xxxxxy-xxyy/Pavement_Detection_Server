@@ -1,0 +1,312 @@
+<!DOCTYPE html>
+<html xmlns:th="http://www.thymeleaf.org">
+<head>
+    <meta charset="UTF-8">
+    <title>路面病害检测管理平台</title>
+    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"/>
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body { font-family: 'Microsoft YaHei', sans-serif; background: #f0f2f5; }
+
+        .header {
+            background: linear-gradient(135deg, #1a237e, #283593);
+            color: white; padding: 16px 24px;
+            display: flex; align-items: center; gap: 12px;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.3);
+        }
+        .header h1 { font-size: 20px; font-weight: 600; }
+        .header .badge {
+            background: #ff6f00; border-radius: 12px;
+            padding: 2px 10px; font-size: 13px;
+        }
+
+        .main { display: flex; height: calc(100vh - 56px); }
+
+        /* 左侧地图 */
+        #map { flex: 1; }
+
+        /* 右侧面板 */
+        .panel {
+            width: 380px; background: white;
+            display: flex; flex-direction: column;
+            box-shadow: -2px 0 8px rgba(0,0,0,0.1);
+        }
+        .panel-header {
+            padding: 14px 16px; background: #e8eaf6;
+            font-weight: 600; font-size: 15px; color: #1a237e;
+            border-bottom: 1px solid #c5cae9;
+        }
+        .filter-bar {
+            padding: 10px 12px; border-bottom: 1px solid #eee;
+            display: flex; gap: 8px;
+        }
+        .filter-bar select, .filter-bar input {
+            flex: 1; padding: 6px 8px; border: 1px solid #ddd;
+            border-radius: 4px; font-size: 13px;
+        }
+        .list { flex: 1; overflow-y: auto; }
+
+        .card {
+            padding: 12px 14px; border-bottom: 1px solid #f0f0f0;
+            cursor: pointer; transition: background 0.15s;
+            display: flex; gap: 10px; align-items: flex-start;
+        }
+        .card:hover { background: #e8eaf6; }
+        .card.selected { background: #e3f2fd; border-left: 3px solid #1565c0; }
+
+        .card-img {
+            width: 64px; height: 64px; object-fit: cover;
+            border-radius: 4px; background: #eee; flex-shrink: 0;
+        }
+        .card-img-placeholder {
+            width: 64px; height: 64px; background: #e0e0e0;
+            border-radius: 4px; display: flex; align-items: center;
+            justify-content: center; color: #999; font-size: 11px;
+            flex-shrink: 0;
+        }
+        .card-info { flex: 1; min-width: 0; }
+        .card-title {
+            font-weight: 600; font-size: 14px; color: #222;
+            display: flex; align-items: center; gap: 6px;
+        }
+        .tag {
+            font-size: 11px; padding: 1px 6px; border-radius: 8px;
+            font-weight: normal;
+        }
+        .tag-A { background: #fff3e0; color: #e65100; }
+        .tag-B { background: #e8f5e9; color: #2e7d32; }
+        .card-meta { font-size: 12px; color: #888; margin-top: 4px; }
+        .card-conf { font-size: 12px; color: #555; margin-top: 2px; }
+
+        /* 详情弹窗 */
+        .detail-panel {
+            display: none; position: fixed;
+            top: 50%; left: 50%; transform: translate(-50%, -50%);
+            background: white; border-radius: 8px; padding: 20px;
+            width: 420px; box-shadow: 0 8px 32px rgba(0,0,0,0.25);
+            z-index: 9999;
+        }
+        .detail-panel.show { display: block; }
+        .overlay {
+            display: none; position: fixed; inset: 0;
+            background: rgba(0,0,0,0.4); z-index: 9998;
+        }
+        .overlay.show { display: block; }
+        .detail-panel h3 { margin-bottom: 14px; color: #1a237e; }
+        .detail-panel img {
+            width: 100%; max-height: 220px;
+            object-fit: contain; border-radius: 4px; background: #f5f5f5;
+        }
+        .detail-row { display: flex; justify-content: space-between;
+            padding: 6px 0; border-bottom: 1px solid #f0f0f0; font-size: 14px; }
+        .detail-row:last-child { border-bottom: none; }
+        .detail-label { color: #888; }
+        .close-btn {
+            position: absolute; top: 12px; right: 14px;
+            background: none; border: none; font-size: 20px;
+            cursor: pointer; color: #666;
+        }
+        .no-data {
+            text-align: center; color: #aaa;
+            padding: 40px 20px; font-size: 14px;
+        }
+    </style>
+</head>
+<body>
+
+<div class="header">
+    <span>🛣️</span>
+    <h1>路面病害检测管理平台</h1>
+    <span class="badge" th:text="'共 ' + ${total} + ' 条记录'"></span>
+</div>
+
+<div class="main">
+    <div id="map"></div>
+
+    <div class="panel">
+        <div class="panel-header">📋 病害记录列表</div>
+        <div class="filter-bar">
+            <select id="filterType" onchange="filterList()">
+                <option value="">全部类型</option>
+                <option value="pothole">坑洞 pothole</option>
+                <option value="crack">裂缝 crack</option>
+                <option value="rutting">车辙 rutting</option>
+            </select>
+            <select id="filterChannel" onchange="filterList()">
+                <option value="">全部通道</option>
+                <option value="A">通道A(IMU触发)</option>
+                <option value="B">通道B(实时)</option>
+            </select>
+        </div>
+        <div class="list" id="recordList">
+            <div th:if="${#lists.isEmpty(detections)}" class="no-data">
+                暂无检测记录<br>请先通过APP上传数据
+            </div>
+            <div th:each="d : ${detections}"
+                 class="card"
+                 th:id="'card-' + ${d.id}"
+                 th:data-id="${d.id}"
+                 th:data-lat="${d.latitude}"
+                 th:data-lng="${d.longitude}"
+                 th:data-type="${d.defectType}"
+                 th:data-channel="${d.channel}"
+                 th:data-conf="${d.confidence}"
+                 th:data-image="${d.imageName}"
+                 th:data-device="${d.deviceId}"
+                 th:data-time="${d.uploadTime}"
+                 onclick="selectRecord(this)">
+
+                <img th:if="${d.imageName != null}"
+                     th:src="'/images/' + ${d.imageName}"
+                     class="card-img" alt="检测图"/>
+                <div th:if="${d.imageName == null}" class="card-img-placeholder">无图片</div>
+
+                <div class="card-info">
+                    <div class="card-title">
+                        <span th:text="${d.defectType}"></span>
+                        <span class="tag"
+                              th:classappend="${d.channel == 'A'} ? 'tag-A' : 'tag-B'"
+                              th:text="'通道' + ${d.channel}"></span>
+                    </div>
+                    <div class="card-conf"
+                         th:text="'置信度: ' + ${#numbers.formatDecimal(d.confidence * 100, 1, 1)} + '%'">
+                    </div>
+                    <div class="card-meta"
+                         th:text="${#strings.substring(d.uploadTime.toString(), 0, 19)}">
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- 详情弹窗 -->
+<div class="overlay" id="overlay" onclick="closeDetail()"></div>
+<div class="detail-panel" id="detailPanel">
+    <button class="close-btn" onclick="closeDetail()">✕</button>
+    <h3 id="d-title">病害详情</h3>
+    <img id="d-img" src="" alt="" style="display:none; margin-bottom:12px;"/>
+    <div class="detail-row"><span class="detail-label">病害类型</span><span id="d-type"></span></div>
+    <div class="detail-row"><span class="detail-label">置信度</span><span id="d-conf"></span></div>
+    <div class="detail-row"><span class="detail-label">触发通道</span><span id="d-channel"></span></div>
+    <div class="detail-row"><span class="detail-label">GPS坐标</span><span id="d-gps"></span></div>
+    <div class="detail-row"><span class="detail-label">设备ID</span><span id="d-device"></span></div>
+    <div class="detail-row"><span class="detail-label">上传时间</span><span id="d-time"></span></div>
+</div>
+
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+<script>
+    // 初始化地图（默认中心：北京）
+    const map = L.map('map').setView([39.9042, 116.4074], 12);
+    L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+        attribution: '© OpenStreetMap'
+    }).addTo(map);
+
+    const markers = {};
+    const allCards = [];
+
+    // 病害类型颜色
+    const typeColor = {
+        'pothole': '#f44336',
+        'crack':   '#ff9800',
+        'rutting': '#9c27b0',
+        'default': '#2196f3'
+    };
+
+    function getColor(type) {
+        return typeColor[type] || typeColor['default'];
+    }
+
+    function makeIcon(type) {
+        const color = getColor(type);
+        return L.divIcon({
+            className: '',
+            html: `<div style="
+                width:14px;height:14px;border-radius:50%;
+                background:${color};border:2px solid white;
+                box-shadow:0 1px 4px rgba(0,0,0,0.4);">
+            </div>`,
+            iconSize: [14, 14],
+            iconAnchor: [7, 7]
+        });
+    }
+
+    // 加载所有记录到地图
+    document.querySelectorAll('.card').forEach(card => {
+        const id   = card.dataset.id;
+        const lat  = parseFloat(card.dataset.lat);
+        const lng  = parseFloat(card.dataset.lng);
+        const type = card.dataset.type;
+
+        allCards.push(card);
+
+        if (!isNaN(lat) && !isNaN(lng)) {
+            const marker = L.marker([lat, lng], { icon: makeIcon(type) })
+                .addTo(map)
+                .bindPopup(`<b>${type}</b><br>置信度: ${(parseFloat(card.dataset.conf)*100).toFixed(1)}%`);
+            marker.on('click', () => selectRecord(card));
+            markers[id] = marker;
+        }
+    });
+
+    // 选中记录
+    function selectRecord(card) {
+        document.querySelectorAll('.card').forEach(c => c.classList.remove('selected'));
+        card.classList.add('selected');
+
+        const lat = parseFloat(card.dataset.lat);
+        const lng = parseFloat(card.dataset.lng);
+        if (!isNaN(lat) && !isNaN(lng)) {
+            map.setView([lat, lng], 17);
+            const marker = markers[card.dataset.id];
+            if (marker) marker.openPopup();
+        }
+
+        // 显示详情弹窗
+        document.getElementById('d-title').textContent = '病害详情 #' + card.dataset.id;
+        document.getElementById('d-type').textContent    = card.dataset.type;
+        document.getElementById('d-conf').textContent    = (parseFloat(card.dataset.conf)*100).toFixed(1) + '%';
+        document.getElementById('d-channel').textContent = '通道' + card.dataset.channel;
+        document.getElementById('d-gps').textContent     = lat.toFixed(6) + ', ' + lng.toFixed(6);
+        document.getElementById('d-device').textContent  = card.dataset.device;
+        document.getElementById('d-time').textContent    = card.dataset.time?.substring(0,19) || '-';
+
+        const imgEl = document.getElementById('d-img');
+        if (card.dataset.image && card.dataset.image !== 'null') {
+            imgEl.src = '/images/' + card.dataset.image;
+            imgEl.style.display = 'block';
+        } else {
+            imgEl.style.display = 'none';
+        }
+
+        document.getElementById('detailPanel').classList.add('show');
+        document.getElementById('overlay').classList.add('show');
+    }
+
+    function closeDetail() {
+        document.getElementById('detailPanel').classList.remove('show');
+        document.getElementById('overlay').classList.remove('show');
+    }
+
+    // 筛选
+    function filterList() {
+        const type    = document.getElementById('filterType').value;
+        const channel = document.getElementById('filterChannel').value;
+        allCards.forEach(card => {
+            const show =
+                (!type    || card.dataset.type    === type) &&
+                (!channel || card.dataset.channel === channel);
+            card.style.display = show ? 'flex' : 'none';
+        });
+    }
+
+    // 自动适配所有标记的地图范围
+    const coords = allCards
+        .map(c => [parseFloat(c.dataset.lat), parseFloat(c.dataset.lng)])
+        .filter(([a,b]) => !isNaN(a) && !isNaN(b));
+    if (coords.length > 0) {
+        map.fitBounds(coords, { padding: [40, 40] });
+    }
+</script>
+</body>
+</html>
