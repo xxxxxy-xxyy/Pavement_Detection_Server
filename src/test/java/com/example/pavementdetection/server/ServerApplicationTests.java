@@ -1,4 +1,4 @@
-package com.example.collectdata.server;
+package com.example.pavementdetection.server;
 
 import org.junit.jupiter.api.Test;
 import org.springframework.boot.test.context.SpringBootTest;

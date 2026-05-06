@@ -1,7 +1,7 @@
-package com.example.collectdata.server.controller;
+package com.example.pavementdetection.server.controller;
 
-import com.example.collectdata.server.entity.Detection;
-import com.example.collectdata.server.service.DetectionService;
+import com.example.pavementdetection.server.entity.Detection;
+import com.example.pavementdetection.server.service.DetectionService;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.core.io.Resource;

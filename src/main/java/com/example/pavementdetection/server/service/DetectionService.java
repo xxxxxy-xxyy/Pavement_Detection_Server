@@ -1,15 +1,21 @@
-package com.example.collectdata.server.service;
+package com.example.pavementdetection.server.service;
 
-import com.example.collectdata.server.entity.Detection;
-import com.example.collectdata.server.repository.DetectionRepository;
+import com.example.pavementdetection.server.entity.Detection;
+import com.example.pavementdetection.server.repository.DetectionRepository;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.PageRequest;
+import org.springframework.data.domain.Pageable;
+import org.springframework.data.domain.Sort;
 import org.springframework.stereotype.Service;
 import org.springframework.web.multipart.MultipartFile;
 
 import java.io.File;
 import java.io.IOException;
+import java.util.LinkedHashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.UUID;
 
 @Service
@@ -72,5 +78,37 @@ public class DetectionService {
     private String getExtension(String filename) {
         if (filename == null || !filename.contains(".")) return "jpg";
         return filename.substring(filename.lastIndexOf(".") + 1);
+    }
+
+    // ===== 新增：分页查询 =====
+    public Page<Detection> getDetectionPage(int page, int size) {
+        Pageable pageable = PageRequest.of(page, size, Sort.by(Sort.Direction.DESC, "id"));
+        return detectionRepository.findAll(pageable);
+    }
+
+    // ===== 新增：统计数据 =====
+    public Map<String, Object> getStats() {
+        Map<String, Object> stats = new LinkedHashMap<>();
+
+        // 病害类型分布
+        List<Object[]> typeData = detectionRepository.countByDefectType();
+        Map<String, Long> typeCount = new LinkedHashMap<>();
+        for (Object[] row : typeData) {
+            typeCount.put((String) row[0], (Long) row[1]);
+        }
+        stats.put("typeDistribution", typeCount);
+
+        // 每日趋势（最近30天）
+        List<Object[]> dayData = detectionRepository.countByDay();
+        Map<String, Long> dailyTrend = new LinkedHashMap<>();
+        for (Object[] row : dayData) {
+            dailyTrend.put(row[0].toString(), ((Number) row[1]).longValue());
+        }
+        stats.put("dailyTrend", dailyTrend);
+
+        // 总数
+        stats.put("total", detectionRepository.count());
+
+        return stats;
     }
 }

@@ -1,7 +1,9 @@
-package com.example.collectdata.server.entity;
+package com.example.pavementdetection.server.entity;
 
+import com.fasterxml.jackson.annotation.JsonFormat;
 import jakarta.persistence.*;
 import lombok.Data;
+
 import java.time.LocalDateTime;
 
 @Data
@@ -34,6 +36,7 @@ public class Detection {
     private String channel;
 
     // 上传时间
+    @JsonFormat(pattern = "yyyy-MM-dd HH:mm:ss")
     private LocalDateTime uploadTime;
 
     // 设备ID（手机标识）

@@ -6,110 +6,92 @@
     <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"/>
     <style>
         * { margin: 0; padding: 0; box-sizing: border-box; }
-        body { font-family: 'Microsoft YaHei', sans-serif; background: #f0f2f5; }
+        body { font-family: 'Microsoft YaHei', sans-serif; background: #f0f2f5; display: flex; flex-direction: column; height: 100vh; overflow: hidden; }
 
-        .header {
-            background: linear-gradient(135deg, #1a237e, #283593);
-            color: white; padding: 16px 24px;
-            display: flex; align-items: center; gap: 12px;
-            box-shadow: 0 2px 8px rgba(0,0,0,0.3);
-        }
+        /* ===== 顶部标题栏 ===== */
+        .header { background: linear-gradient(135deg, #1a237e, #283593); color: white; padding: 12px 24px; display: flex; align-items: center; gap: 12px; box-shadow: 0 2px 8px rgba(0,0,0,0.3); flex-shrink: 0; height: 52px; }
         .header h1 { font-size: 20px; font-weight: 600; }
-        .header .badge {
-            background: #ff6f00; border-radius: 12px;
-            padding: 2px 10px; font-size: 13px;
-        }
+        .header .badge { background: #ff6f00; border-radius: 12px; padding: 2px 10px; font-size: 13px; }
+        .header-spacer { flex: 1; }
+        .btn-export { background: #00897b; color: white; border: none; border-radius: 6px; padding: 5px 14px; font-size: 13px; cursor: pointer; display: flex; align-items: center; gap: 5px; transition: background 0.15s; white-space: nowrap; }
+        .btn-export:hover { background: #00695c; }
 
-        .main { display: flex; height: calc(100vh - 56px); }
+        /* ===== 统计面板 ===== */
+        .stats-panel { display: flex; gap: 10px; padding: 8px 14px; background: #1a2340; border-bottom: 1px solid #253060; flex-shrink: 0; height: 170px; }
+        .stat-box { background: #111d36; border: 1px solid #253060; border-radius: 8px; padding: 8px 12px; display: flex; flex-direction: column; }
+        .stat-total { width: 100px; flex-shrink: 0; align-items: center; justify-content: center; gap: 4px; }
+        .stat-total .lbl { color: #7a8fbb; font-size: 12px; }
+        .stat-total .num { color: #4fc3f7; font-size: 40px; font-weight: bold; line-height: 1.1; }
+        .stat-pie { width: 250px; flex-shrink: 0; }
+        .stat-line { flex: 1; }
+        .stat-title { color: #7a8fbb; font-size: 11px; font-weight: 500; margin-bottom: 4px; flex-shrink: 0; }
+        .canvas-wrap { flex: 1; position: relative; min-height: 0; }
+        .canvas-wrap canvas { position: absolute; inset: 0; width: 100% !important; height: 100% !important; }
 
-        /* 左侧地图 */
+        /* ===== 主体 ===== */
+        .main { display: flex; flex: 1; overflow: hidden; }
         #map { flex: 1; }
 
-        /* 右侧面板 */
-        .panel {
-            width: 380px; background: white;
-            display: flex; flex-direction: column;
-            box-shadow: -2px 0 8px rgba(0,0,0,0.1);
-        }
-        .panel-header {
-            padding: 14px 16px; background: #e8eaf6;
-            font-weight: 600; font-size: 15px; color: #1a237e;
-            border-bottom: 1px solid #c5cae9;
-        }
-        .filter-bar {
-            padding: 10px 12px; border-bottom: 1px solid #eee;
-            display: flex; gap: 8px;
-        }
-        .filter-bar select, .filter-bar input {
-            flex: 1; padding: 6px 8px; border: 1px solid #ddd;
-            border-radius: 4px; font-size: 13px;
-        }
+        /* ===== 右侧面板 ===== */
+        .panel { width: 360px; background: white; display: flex; flex-direction: column; box-shadow: -2px 0 8px rgba(0,0,0,0.12); flex-shrink: 0; }
+        .panel-header { padding: 11px 14px; background: #e8eaf6; font-weight: 600; font-size: 14px; color: #1a237e; border-bottom: 1px solid #c5cae9; flex-shrink: 0; }
+        .filter-bar { padding: 7px 10px; background: #fff; border-bottom: 1px solid #e8e8e8; display: flex; gap: 6px; flex-shrink: 0; }
+        .filter-bar select { flex: 1; min-width: 0; padding: 5px 20px 5px 6px; border: 1px solid #d0d0d0; border-radius: 4px; font-size: 11px; background: #fafafa; color: #333; outline: none; cursor: pointer; -webkit-appearance: none; appearance: none; background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='10' height='6'%3E%3Cpath d='M0 0l5 6 5-6z' fill='%23999'/%3E%3C/svg%3E"); background-repeat: no-repeat; background-position: right 6px center; }
+        .filter-bar select:focus { border-color: #5c6bc0; }
+
+        /* ===== 列表 ===== */
         .list { flex: 1; overflow-y: auto; }
-
-        .card {
-            padding: 12px 14px; border-bottom: 1px solid #f0f0f0;
-            cursor: pointer; transition: background 0.15s;
-            display: flex; gap: 10px; align-items: flex-start;
-        }
-        .card:hover { background: #e8eaf6; }
-        .card.selected { background: #e3f2fd; border-left: 3px solid #1565c0; }
-
-        .card-img {
-            width: 64px; height: 64px; object-fit: cover;
-            border-radius: 4px; background: #eee; flex-shrink: 0;
-        }
-        .card-img-placeholder {
-            width: 64px; height: 64px; background: #e0e0e0;
-            border-radius: 4px; display: flex; align-items: center;
-            justify-content: center; color: #999; font-size: 11px;
-            flex-shrink: 0;
-        }
+        .card { padding: 9px 11px; border-bottom: 1px solid #f0f0f0; cursor: pointer; transition: background 0.12s; display: flex; gap: 9px; align-items: flex-start; position: relative; }
+        .card:hover { background: #eef0fb; }
+        .card:hover .btn-del { opacity: 1; }
+        .card.selected { background: #e3f2fd; border-left: 3px solid #1565c0; padding-left: 8px; }
+        .card-img { width: 58px; height: 58px; object-fit: cover; border-radius: 4px; background: #eee; flex-shrink: 0; }
+        .card-img-placeholder { width: 58px; height: 58px; background: #e8e8e8; border-radius: 4px; display: flex; align-items: center; justify-content: center; color: #bbb; font-size: 10px; flex-shrink: 0; text-align: center; }
         .card-info { flex: 1; min-width: 0; }
-        .card-title {
-            font-weight: 600; font-size: 14px; color: #222;
-            display: flex; align-items: center; gap: 6px;
-        }
-        .tag {
-            font-size: 11px; padding: 1px 6px; border-radius: 8px;
-            font-weight: normal;
-        }
+        .card-title { font-weight: 600; font-size: 12.5px; color: #222; display: flex; align-items: center; gap: 4px; flex-wrap: wrap; line-height: 1.4; }
+        .tag { font-size: 10px; padding: 1px 5px; border-radius: 8px; font-weight: normal; white-space: nowrap; flex-shrink: 0; }
         .tag-A { background: #fff3e0; color: #e65100; }
         .tag-B { background: #e8f5e9; color: #2e7d32; }
-        .card-meta { font-size: 12px; color: #888; margin-top: 4px; }
-        .card-conf { font-size: 12px; color: #555; margin-top: 2px; }
+        .card-conf { font-size: 11px; color: #555; margin-top: 3px; }
+        .card-meta { font-size: 10.5px; color: #999; margin-top: 2px; }
 
-        /* 详情弹窗 */
-        .detail-panel {
-            display: none; position: fixed;
-            top: 50%; left: 50%; transform: translate(-50%, -50%);
-            background: white; border-radius: 8px; padding: 20px;
-            width: 420px; box-shadow: 0 8px 32px rgba(0,0,0,0.25);
-            z-index: 9999;
-        }
-        .detail-panel.show { display: block; }
-        .overlay {
-            display: none; position: fixed; inset: 0;
-            background: rgba(0,0,0,0.4); z-index: 9998;
-        }
+        /* 删除按钮 */
+        .btn-del { position: absolute; top: 7px; right: 8px; background: none; border: none; color: #ccc; font-size: 15px; cursor: pointer; opacity: 0; transition: opacity 0.15s, color 0.15s; line-height: 1; padding: 2px 4px; border-radius: 3px; }
+        .btn-del:hover { color: #e53935; background: #ffeaea; }
+
+        /* ===== 分页 ===== */
+        .pagination { display: flex; justify-content: center; align-items: center; gap: 8px; padding: 7px 10px; border-top: 1px solid #eee; flex-shrink: 0; background: #fafafa; }
+        .pagination button { padding: 3px 12px; background: #e8eaf6; color: #1a237e; border: 1px solid #c5cae9; border-radius: 4px; cursor: pointer; font-size: 12px; transition: background 0.12s; }
+        .pagination button:hover:not(:disabled) { background: #c5cae9; }
+        .pagination button:disabled { opacity: 0.4; cursor: default; }
+        .page-info { color: #888; font-size: 11px; white-space: nowrap; }
+        .list-loading, .no-data { text-align: center; color: #bbb; padding: 36px 20px; font-size: 13px; }
+
+        /* ===== 详情弹窗 ===== */
+        .overlay { display: none; position: fixed; inset: 0; background: rgba(0,0,0,0.4); z-index: 9998; }
         .overlay.show { display: block; }
-        .detail-panel h3 { margin-bottom: 14px; color: #1a237e; }
-        .detail-panel img {
-            width: 100%; max-height: 220px;
-            object-fit: contain; border-radius: 4px; background: #f5f5f5;
-        }
-        .detail-row { display: flex; justify-content: space-between;
-            padding: 6px 0; border-bottom: 1px solid #f0f0f0; font-size: 14px; }
+        .detail-panel { display: none; position: fixed; top: 50%; left: 50%; transform: translate(-50%, -50%); background: white; border-radius: 8px; padding: 20px 22px; width: 440px; box-shadow: 0 8px 32px rgba(0,0,0,0.25); z-index: 9999; }
+        .detail-panel.show { display: block; }
+        .detail-panel h3 { margin-bottom: 12px; color: #1a237e; font-size: 16px; }
+        #d-img { width: 100%; max-height: 220px; object-fit: contain; border-radius: 4px; background: #f5f5f5; margin-bottom: 12px; }
+        .detail-row { display: flex; justify-content: space-between; padding: 6px 0; border-bottom: 1px solid #f0f0f0; font-size: 13px; }
         .detail-row:last-child { border-bottom: none; }
-        .detail-label { color: #888; }
-        .close-btn {
-            position: absolute; top: 12px; right: 14px;
-            background: none; border: none; font-size: 20px;
-            cursor: pointer; color: #666;
-        }
-        .no-data {
-            text-align: center; color: #aaa;
-            padding: 40px 20px; font-size: 14px;
-        }
+        .detail-label { color: #999; }
+        .close-btn { position: absolute; top: 12px; right: 14px; background: none; border: none; font-size: 20px; cursor: pointer; color: #888; }
+        .close-btn:hover { color: #333; }
+
+        /* ===== 确认删除弹窗 ===== */
+        .confirm-mask { display: none; position: fixed; inset: 0; background: rgba(0,0,0,0.45); z-index: 10000; align-items: center; justify-content: center; }
+        .confirm-mask.show { display: flex; }
+        .confirm-box { background: white; border-radius: 8px; padding: 24px 28px; width: 320px; box-shadow: 0 8px 32px rgba(0,0,0,0.2); }
+        .confirm-box h4 { font-size: 16px; color: #333; margin-bottom: 10px; }
+        .confirm-box p { font-size: 13px; color: #666; margin-bottom: 20px; line-height: 1.6; }
+        .confirm-btns { display: flex; gap: 10px; justify-content: flex-end; }
+        .confirm-btns button { padding: 6px 18px; border-radius: 5px; border: none; cursor: pointer; font-size: 13px; }
+        .btn-cancel-del { background: #f0f0f0; color: #555; }
+        .btn-cancel-del:hover { background: #e0e0e0; }
+        .btn-confirm-del { background: #e53935; color: white; }
+        .btn-confirm-del:hover { background: #c62828; }
     </style>
 </head>
 <body>
@@ -117,75 +99,64 @@
 <div class="header">
     <span>🛣️</span>
     <h1>路面病害检测管理平台</h1>
-    <span class="badge" th:text="'共 ' + ${total} + ' 条记录'"></span>
+    <span class="badge" id="header-badge">加载中…</span>
+    <div class="header-spacer"></div>
+    <button class="btn-export" onclick="exportCSV()">⬇ 导出 CSV</button>
+</div>
+
+<div class="stats-panel">
+    <div class="stat-box stat-total">
+        <div class="lbl">总记录数</div>
+        <div class="num" id="total-count">-</div>
+        <div class="lbl">条</div>
+    </div>
+    <div class="stat-box stat-pie">
+        <div class="stat-title">病害类型分布</div>
+        <div class="canvas-wrap"><canvas id="pieCanvas"></canvas></div>
+    </div>
+    <div class="stat-box stat-line">
+        <div class="stat-title">近30天检测趋势</div>
+        <div class="canvas-wrap"><canvas id="lineCanvas"></canvas></div>
+    </div>
 </div>
 
 <div class="main">
     <div id="map"></div>
-
     <div class="panel">
         <div class="panel-header">📋 病害记录列表</div>
         <div class="filter-bar">
-            <select id="filterType" onchange="filterList()">
+            <select id="filterType">
                 <option value="">全部类型</option>
-                <option value="pothole">坑洞 pothole</option>
-                <option value="crack">裂缝 crack</option>
-                <option value="rutting">车辙 rutting</option>
+                <option value="crack">裂缝</option>
+                <option value="patched_crack">修补后裂缝</option>
+                <option value="pothole">坑槽</option>
+                <option value="patched_pothole">修补后坑槽</option>
+                <option value="alligator_crack">网裂</option>
+                <option value="patched_alligator_crack">修补后网裂</option>
+                <option value="manhole">检查井</option>
+                <option value="street_waste">路面垃圾</option>
             </select>
-            <select id="filterChannel" onchange="filterList()">
+            <select id="filterChannel">
                 <option value="">全部通道</option>
-                <option value="A">通道A(IMU触发)</option>
-                <option value="B">通道B(实时)</option>
+                <option value="A">通道A（IMU触发）</option>
+                <option value="B">通道B（实时）</option>
             </select>
         </div>
-        <div class="list" id="recordList">
-            <div th:if="${#lists.isEmpty(detections)}" class="no-data">
-                暂无检测记录<br>请先通过APP上传数据
-            </div>
-            <div th:each="d : ${detections}"
-                 class="card"
-                 th:id="'card-' + ${d.id}"
-                 th:data-id="${d.id}"
-                 th:data-lat="${d.latitude}"
-                 th:data-lng="${d.longitude}"
-                 th:data-type="${d.defectType}"
-                 th:data-channel="${d.channel}"
-                 th:data-conf="${d.confidence}"
-                 th:data-image="${d.imageName}"
-                 th:data-device="${d.deviceId}"
-                 th:data-time="${d.uploadTime}"
-                 onclick="selectRecord(this)">
-
-                <img th:if="${d.imageName != null}"
-                     th:src="'/images/' + ${d.imageName}"
-                     class="card-img" alt="检测图"/>
-                <div th:if="${d.imageName == null}" class="card-img-placeholder">无图片</div>
-
-                <div class="card-info">
-                    <div class="card-title">
-                        <span th:text="${d.defectType}"></span>
-                        <span class="tag"
-                              th:classappend="${d.channel == 'A'} ? 'tag-A' : 'tag-B'"
-                              th:text="'通道' + ${d.channel}"></span>
-                    </div>
-                    <div class="card-conf"
-                         th:text="'置信度: ' + ${#numbers.formatDecimal(d.confidence * 100, 1, 1)} + '%'">
-                    </div>
-                    <div class="card-meta"
-                         th:text="${#strings.substring(d.uploadTime.toString(), 0, 19)}">
-                    </div>
-                </div>
-            </div>
+        <div class="list" id="recordList"><div class="list-loading">加载中…</div></div>
+        <div class="pagination">
+            <button id="btn-prev" disabled>上一页</button>
+            <span class="page-info" id="page-info">- / -</span>
+            <button id="btn-next" disabled>下一页</button>
         </div>
     </div>
 </div>
 
 <!-- 详情弹窗 -->
-<div class="overlay" id="overlay" onclick="closeDetail()"></div>
+<div class="overlay" id="overlay"></div>
 <div class="detail-panel" id="detailPanel">
-    <button class="close-btn" onclick="closeDetail()">✕</button>
+    <button class="close-btn" id="closeBtn">✕</button>
     <h3 id="d-title">病害详情</h3>
-    <img id="d-img" src="" alt="" style="display:none; margin-bottom:12px;"/>
+    <img id="d-img" src="" alt="" style="display:none;"/>
     <div class="detail-row"><span class="detail-label">病害类型</span><span id="d-type"></span></div>
     <div class="detail-row"><span class="detail-label">置信度</span><span id="d-conf"></span></div>
     <div class="detail-row"><span class="detail-label">触发通道</span><span id="d-channel"></span></div>
@@ -194,91 +165,372 @@
     <div class="detail-row"><span class="detail-label">上传时间</span><span id="d-time"></span></div>
 </div>
 
+<!-- 确认删除弹窗 -->
+<div class="confirm-mask" id="confirmMask">
+    <div class="confirm-box">
+        <h4>🗑 确认删除</h4>
+        <p id="confirmMsg">确定要删除这条记录吗？<br>此操作不可撤销。</p>
+        <div class="confirm-btns">
+            <button class="btn-cancel-del" id="btnCancelDel">取消</button>
+            <button class="btn-confirm-del" id="btnConfirmDel">确认删除</button>
+        </div>
+    </div>
+</div>
+
 <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
 <script>
-    // 初始化地图（默认中心：北京）
-    const map = L.map('map').setView([39.9042, 116.4074], 12);
-    L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
-        attribution: '© OpenStreetMap'
-    }).addTo(map);
-
-    const markers = {};
-    const allCards = [];
-
-    // 病害类型颜色
-    const typeColor = {
-        'pothole': '#f44336',
-        'crack':   '#ff9800',
-        'rutting': '#9c27b0',
-        'default': '#2196f3'
+    // ── 病害类型配置 ──────────────────────────
+    const TYPE_CONFIG = {
+        crack:                   { label: '裂缝',       color: '#ff7043' },
+        patched_crack:           { label: '修补后裂缝', color: '#ffa726' },
+        pothole:                 { label: '坑槽',       color: '#f44336' },
+        patched_pothole:         { label: '修补后坑槽', color: '#ef5350' },
+        alligator_crack:         { label: '网裂',       color: '#ab47bc' },
+        patched_alligator_crack: { label: '修补后网裂', color: '#ce93d8' },
+        manhole:                 { label: '检查井',     color: '#26c6da' },
+        street_waste:            { label: '路面垃圾',   color: '#8d6e63' },
     };
+    const tLabel = t => TYPE_CONFIG[t] ? `${TYPE_CONFIG[t].label} (${t})` : (t || '-');
+    const tColor = t => TYPE_CONFIG[t]?.color ?? '#2196f3';
 
-    function getColor(type) {
-        return typeColor[type] || typeColor['default'];
-    }
+    // ── 地图 ──────────────────────────────────
+    const map = L.map('map').setView([39.9042, 116.4074], 12);
+    L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', { attribution: '© OpenStreetMap' }).addTo(map);
+    const markers = {};
 
     function makeIcon(type) {
-        const color = getColor(type);
+        const c = tColor(type);
         return L.divIcon({
             className: '',
-            html: `<div style="
-                width:14px;height:14px;border-radius:50%;
-                background:${color};border:2px solid white;
-                box-shadow:0 1px 4px rgba(0,0,0,0.4);">
-            </div>`,
-            iconSize: [14, 14],
-            iconAnchor: [7, 7]
+            html: `<div style="width:13px;height:13px;border-radius:50%;background:${c};border:2px solid #fff;box-shadow:0 1px 4px rgba(0,0,0,0.45);"></div>`,
+            iconSize: [13,13], iconAnchor: [6,6]
         });
     }
 
-    // 加载所有记录到地图
-    document.querySelectorAll('.card').forEach(card => {
-        const id   = card.dataset.id;
-        const lat  = parseFloat(card.dataset.lat);
-        const lng  = parseFloat(card.dataset.lng);
-        const type = card.dataset.type;
+    // ── 状态 ──────────────────────────────────
+    let currentPage = 0, totalPages = 1;
+    const PAGE_SIZE = 20;
+    let currentRecords = [];
+    let pendingDeleteId = null;
 
-        allCards.push(card);
-
-        if (!isNaN(lat) && !isNaN(lng)) {
-            const marker = L.marker([lat, lng], { icon: makeIcon(type) })
-                .addTo(map)
-                .bindPopup(`<b>${type}</b><br>置信度: ${(parseFloat(card.dataset.conf)*100).toFixed(1)}%`);
-            marker.on('click', () => selectRecord(card));
-            markers[id] = marker;
-        }
+    // ── 启动 ──────────────────────────────────
+    document.addEventListener('DOMContentLoaded', () => {
+        document.getElementById('filterType').addEventListener('change', applyFilter);
+        document.getElementById('filterChannel').addEventListener('change', applyFilter);
+        document.getElementById('btn-prev').addEventListener('click', () => changePage(-1));
+        document.getElementById('btn-next').addEventListener('click', () => changePage(1));
+        document.getElementById('overlay').addEventListener('click', closeDetail);
+        document.getElementById('closeBtn').addEventListener('click', closeDetail);
+        document.getElementById('btnCancelDel').addEventListener('click', closeConfirm);
+        document.getElementById('btnConfirmDel').addEventListener('click', doDelete);
+        loadStats();
+        loadPage(0);
     });
 
-    // 选中记录
-    function selectRecord(card) {
-        document.querySelectorAll('.card').forEach(c => c.classList.remove('selected'));
+    // ── 原生 Canvas 饼图 ──────────────────────
+    function drawPie(canvas, typeData) {
+        const keys   = Object.keys(typeData);
+        const values = keys.map(k => typeData[k]);
+        const colors = keys.map(k => tColor(k));
+        const labels = keys.map(k => TYPE_CONFIG[k]?.label ?? k);
+        const total  = values.reduce((a, b) => a + b, 0);
+        if (total === 0) return;
+        const wrap = canvas.parentElement;
+        const W = wrap.clientWidth || 220, H = wrap.clientHeight || 130;
+        canvas.width = W; canvas.height = H;
+        const ctx = canvas.getContext('2d');
+        ctx.clearRect(0, 0, W, H);
+        const legendW = 90, chartW = W - legendW;
+        const r = Math.min(chartW, H) / 2 - 6;
+        const cx = chartW / 2, cy = H / 2;
+        let startAngle = -Math.PI / 2;
+        values.forEach((v, i) => {
+            const slice = (v / total) * Math.PI * 2;
+            ctx.beginPath(); ctx.moveTo(cx, cy);
+            ctx.arc(cx, cy, r, startAngle, startAngle + slice);
+            ctx.closePath();
+            ctx.fillStyle = colors[i]; ctx.fill();
+            ctx.strokeStyle = '#111d36'; ctx.lineWidth = 1.5; ctx.stroke();
+            startAngle += slice;
+        });
+        const legendX = chartW + 6, lineH = 16;
+        const startY = Math.max(6, (H - keys.length * lineH) / 2);
+        ctx.font = '10px Microsoft YaHei, sans-serif';
+        keys.forEach((k, i) => {
+            const y = startY + i * lineH;
+            ctx.fillStyle = colors[i];
+            ctx.fillRect(legendX, y + 2, 10, 10);
+            ctx.fillStyle = '#9aaac8';
+            const lbl = labels[i].length > 5 ? labels[i].slice(0, 5) + '…' : labels[i];
+            ctx.fillText(`${lbl} ${values[i]}`, legendX + 14, y + 11);
+        });
+    }
+
+    // ── 原生 Canvas 折线图 ────────────────────
+    function drawLine(canvas, trendData) {
+        const rawKeys = Object.keys(trendData);
+        const values  = rawKeys.map(k => Number(trendData[k]));
+        if (rawKeys.length === 0) return;
+        const wrap = canvas.parentElement;
+        const W = wrap.clientWidth || 400, H = wrap.clientHeight || 130;
+        canvas.width = W; canvas.height = H;
+        const ctx = canvas.getContext('2d');
+        ctx.clearRect(0, 0, W, H);
+        const padL = 32, padR = 12, padT = 10, padB = 28;
+        const chartW = W - padL - padR, chartH = H - padT - padB;
+        const maxVal = Math.max(...values, 1);
+        const yMax   = Math.ceil(maxVal * 1.25) || 1;
+        ctx.strokeStyle = 'rgba(37,48,96,0.7)'; ctx.lineWidth = 0.5;
+        ctx.font = '9px Microsoft YaHei, sans-serif'; ctx.fillStyle = '#7a8fbb'; ctx.textAlign = 'right';
+        const ySteps = Math.min(yMax, 5);
+        for (let i = 0; i <= ySteps; i++) {
+            const yVal = Math.round((yMax / ySteps) * i);
+            const y    = padT + chartH - (yVal / yMax) * chartH;
+            ctx.beginPath(); ctx.moveTo(padL, y); ctx.lineTo(padL + chartW, y); ctx.stroke();
+            ctx.fillText(yVal, padL - 3, y + 3);
+        }
+        ctx.textAlign = 'center'; ctx.fillStyle = '#7a8fbb';
+        const n = rawKeys.length, step = Math.max(1, Math.ceil(n / 8));
+        rawKeys.forEach((k, i) => {
+            if (i % step !== 0 && i !== n - 1) return;
+            const x   = padL + (i / Math.max(n - 1, 1)) * chartW;
+            const lbl = k.length >= 10 ? k.slice(5, 10) : k;
+            ctx.fillText(lbl, x, H - padB + 14);
+        });
+        const pts = values.map((v, i) => ({
+            x: padL + (i / Math.max(n - 1, 1)) * chartW,
+            y: padT + chartH - (v / yMax) * chartH
+        }));
+        ctx.beginPath(); ctx.moveTo(pts[0].x, padT + chartH);
+        pts.forEach(p => ctx.lineTo(p.x, p.y));
+        ctx.lineTo(pts[pts.length-1].x, padT + chartH); ctx.closePath();
+        ctx.fillStyle = 'rgba(79,195,247,0.12)'; ctx.fill();
+        ctx.beginPath(); ctx.strokeStyle = '#4fc3f7'; ctx.lineWidth = 2; ctx.lineJoin = 'round';
+        pts.forEach((p, i) => i === 0 ? ctx.moveTo(p.x, p.y) : ctx.lineTo(p.x, p.y));
+        ctx.stroke();
+        pts.forEach((p, i) => {
+            ctx.beginPath(); ctx.arc(p.x, p.y, n <= 10 ? 4 : 2, 0, Math.PI * 2);
+            ctx.fillStyle = '#4fc3f7'; ctx.strokeStyle = '#111d36'; ctx.lineWidth = 1.5;
+            ctx.fill(); ctx.stroke();
+            if (n <= 10) {
+                ctx.fillStyle = '#9aaac8'; ctx.font = '9px Microsoft YaHei, sans-serif';
+                ctx.textAlign = 'center'; ctx.fillText(values[i], p.x, p.y - 7);
+            }
+        });
+    }
+
+    // ── 统计面板 ──────────────────────────────
+    function loadStats() {
+        fetch('/api/detection/stats')
+            .then(r => r.json())
+            .then(data => {
+                const total = data.total ?? 0;
+                document.getElementById('total-count').textContent = total;
+                document.getElementById('header-badge').textContent = `共 ${total} 条记录`;
+                requestAnimationFrame(() => {
+                    drawPie(document.getElementById('pieCanvas'),  data.typeDistribution || {});
+                    drawLine(document.getElementById('lineCanvas'), data.dailyTrend      || {});
+                });
+            })
+            .catch(e => { console.error('stats:', e); document.getElementById('header-badge').textContent = '统计加载失败'; });
+    }
+
+    window.addEventListener('resize', () => {
+        fetch('/api/detection/stats').then(r => r.json()).then(data => {
+            drawPie(document.getElementById('pieCanvas'),  data.typeDistribution || {});
+            drawLine(document.getElementById('lineCanvas'), data.dailyTrend      || {});
+        }).catch(() => {});
+    });
+
+    // ── 分页 ──────────────────────────────────
+    function loadPage(page) {
+        document.getElementById('recordList').innerHTML = '<div class="list-loading">加载中…</div>';
+        fetch(`/api/detection/list?page=${page}&size=${PAGE_SIZE}`)
+            .then(r => r.json())
+            .then(data => {
+                currentPage    = data.currentPage ?? page;
+                totalPages     = data.totalPages  ?? 1;
+                currentRecords = data.content     ?? [];
+                document.getElementById('page-info').textContent = `第 ${currentPage+1} / ${Math.max(totalPages,1)} 页`;
+                document.getElementById('btn-prev').disabled = currentPage === 0;
+                document.getElementById('btn-next').disabled = currentPage >= totalPages - 1;
+                applyFilter();
+                syncMapMarkers(currentRecords);
+            })
+            .catch(() => { document.getElementById('recordList').innerHTML = '<div class="no-data">⚠️ 加载失败，请刷新重试</div>'; });
+    }
+
+    function changePage(delta) {
+        const next = currentPage + delta;
+        if (next >= 0 && next < totalPages) loadPage(next);
+    }
+
+    // ── 渲染列表 ──────────────────────────────
+    function applyFilter() {
+        const typeF    = document.getElementById('filterType').value;
+        const channelF = document.getElementById('filterChannel').value;
+        const filtered = currentRecords.filter(d =>
+            (!typeF    || d.defectType === typeF) &&
+            (!channelF || d.channel    === channelF)
+        );
+        const list = document.getElementById('recordList');
+        if (filtered.length === 0) { list.innerHTML = '<div class="no-data">暂无符合条件的记录</div>'; return; }
+        list.innerHTML = filtered.map(d => {
+            const imgHtml = d.imageName
+                ? `<img src="/images/${d.imageName}" class="card-img" alt="图" onerror="this.outerHTML='<div class=\\'card-img-placeholder\\'>无图片</div>'">`
+                : `<div class="card-img-placeholder">无图片</div>`;
+            const conf    = ((d.confidence ?? 0) * 100).toFixed(1);
+            const timeStr = (d.uploadTime ?? '').toString().substring(0, 19);
+            const tagCls  = d.channel === 'A' ? 'tag-A' : 'tag-B';
+            return `<div class="card" id="card-${d.id}"
+                     data-id="${d.id}" data-lat="${d.latitude}" data-lng="${d.longitude}"
+                     data-type="${d.defectType}" data-channel="${d.channel}" data-conf="${d.confidence}"
+                     data-image="${(d.imageName??'').replace(/"/g,'&quot;')}"
+                     data-device="${(d.deviceId??'').replace(/"/g,'&quot;')}"
+                     data-time="${(d.uploadTime??'').toString().replace(/"/g,'&quot;')}"
+                     onclick="selectCard(this)">
+            ${imgHtml}
+            <div class="card-info">
+                <div class="card-title"><span>${tLabel(d.defectType)}</span><span class="tag ${tagCls}">通道${d.channel}</span></div>
+                <div class="card-conf">置信度: ${conf}%</div>
+                <div class="card-meta">${timeStr}</div>
+            </div>
+            <button class="btn-del" title="删除" onclick="askDelete(event, ${d.id}, '${d.defectType}')">🗑</button>
+        </div>`;
+        }).join('');
+    }
+
+    // ── 删除功能 ──────────────────────────────
+    function askDelete(e, id, type) {
+        e.stopPropagation();  // 防止触发 selectCard
+        pendingDeleteId = id;
+        document.getElementById('confirmMsg').innerHTML =
+            `确定要删除 <b>#${id} ${tLabel(type)}</b> 这条记录吗？<br>此操作不可撤销。`;
+        document.getElementById('confirmMask').classList.add('show');
+    }
+
+    function closeConfirm() {
+        pendingDeleteId = null;
+        document.getElementById('confirmMask').classList.remove('show');
+    }
+
+    function doDelete() {
+        if (!pendingDeleteId) return;
+        const id = pendingDeleteId;
+        closeConfirm();
+
+        fetch(`/api/detection/${id}`, { method: 'DELETE' })
+            .then(r => {
+                if (!r.ok) throw new Error('删除失败');
+                return r.json();
+            })
+            .then(() => {
+                // 从缓存移除
+                currentRecords = currentRecords.filter(d => d.id != id);
+                // 移除地图标记
+                if (markers[id]) { map.removeLayer(markers[id]); delete markers[id]; }
+                // 关闭详情弹窗（如果正在查看这条）
+                if (document.getElementById('d-title').textContent.includes(`#${id}`)) closeDetail();
+                // 重新渲染列表
+                applyFilter();
+                // 刷新统计
+                loadStats();
+                // 如果当前页已空且不是第一页，回到上一页
+                if (currentRecords.length === 0 && currentPage > 0) loadPage(currentPage - 1);
+            })
+            .catch(err => alert('删除失败：' + err.message));
+    }
+
+    // ── 导出 CSV ──────────────────────────────
+    function exportCSV() {
+        const typeF    = document.getElementById('filterType').value;
+        const channelF = document.getElementById('filterChannel').value;
+
+        // 构建导出接口 URL（带筛选参数）
+        let url = '/api/detection/export';
+        const params = [];
+        if (typeF)    params.push(`defectType=${encodeURIComponent(typeF)}`);
+        if (channelF) params.push(`channel=${encodeURIComponent(channelF)}`);
+        if (params.length) url += '?' + params.join('&');
+
+        fetch(url)
+            .then(r => r.json())
+            .then(records => {
+                if (records.length === 0) { alert('当前筛选条件下没有数据可导出'); return; }
+
+                // CSV 列头
+                const headers = ['ID','病害类型','中文名称','置信度(%)','触发通道','纬度','经度','设备ID','上传时间'];
+                const rows = records.map(d => [
+                    d.id,
+                    d.defectType,
+                    TYPE_CONFIG[d.defectType]?.label ?? d.defectType,
+                    ((d.confidence ?? 0) * 100).toFixed(1),
+                    d.channel === 'A' ? 'A(IMU触发)' : 'B(实时检测)',
+                    d.latitude,
+                    d.longitude,
+                    d.deviceId ?? '',
+                    (d.uploadTime ?? '').toString().substring(0, 19)
+                ]);
+
+                // 拼 CSV（加 BOM 确保 Excel 中文不乱码）
+                const BOM  = '\uFEFF';
+                const csv  = BOM + [headers, ...rows]
+                    .map(row => row.map(v => `"${String(v).replace(/"/g, '""')}"`).join(','))
+                    .join('\r\n');
+
+                // 触发下载
+                const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
+                const link = document.createElement('a');
+                link.href  = URL.createObjectURL(blob);
+                const now  = new Date().toISOString().slice(0,10);
+                link.download = `路面病害数据_${now}.csv`;
+                link.click();
+                URL.revokeObjectURL(link.href);
+            })
+            .catch(() => alert('导出失败，请重试'));
+    }
+
+    // ── 地图标记 ──────────────────────────────
+    function syncMapMarkers(records) {
+        Object.values(markers).forEach(m => map.removeLayer(m));
+        Object.keys(markers).forEach(k => delete markers[k]);
+        const coords = [];
+        records.forEach(d => {
+            const lat = parseFloat(d.latitude), lng = parseFloat(d.longitude);
+            if (isNaN(lat) || isNaN(lng)) return;
+            const conf   = ((d.confidence ?? 0) * 100).toFixed(1);
+            const marker = L.marker([lat, lng], { icon: makeIcon(d.defectType) })
+                .addTo(map)
+                .bindPopup(`<b>${tLabel(d.defectType)}</b><br>置信度: ${conf}%<br>通道: ${d.channel}`);
+            marker.on('click', () => { const card = document.getElementById('card-' + d.id); card ? selectCard(card) : fillAndShow(d); });
+            markers[d.id] = marker;
+            coords.push([lat, lng]);
+        });
+        if (coords.length > 0) map.fitBounds(coords, { padding: [40, 40] });
+    }
+
+    // ── 选中卡片 ──────────────────────────────
+    function selectCard(card) {
+        document.querySelectorAll('.card.selected').forEach(c => c.classList.remove('selected'));
         card.classList.add('selected');
+        const lat = parseFloat(card.dataset.lat), lng = parseFloat(card.dataset.lng);
+        if (!isNaN(lat) && !isNaN(lng)) { map.setView([lat, lng], 17); markers[card.dataset.id]?.openPopup(); }
+        fillAndShow({ id: card.dataset.id, defectType: card.dataset.type, confidence: parseFloat(card.dataset.conf), channel: card.dataset.channel, latitude: lat, longitude: lng, deviceId: card.dataset.device, uploadTime: card.dataset.time, imageName: card.dataset.image });
+    }
 
-        const lat = parseFloat(card.dataset.lat);
-        const lng = parseFloat(card.dataset.lng);
-        if (!isNaN(lat) && !isNaN(lng)) {
-            map.setView([lat, lng], 17);
-            const marker = markers[card.dataset.id];
-            if (marker) marker.openPopup();
-        }
-
-        // 显示详情弹窗
-        document.getElementById('d-title').textContent = '病害详情 #' + card.dataset.id;
-        document.getElementById('d-type').textContent    = card.dataset.type;
-        document.getElementById('d-conf').textContent    = (parseFloat(card.dataset.conf)*100).toFixed(1) + '%';
-        document.getElementById('d-channel').textContent = '通道' + card.dataset.channel;
-        document.getElementById('d-gps').textContent     = lat.toFixed(6) + ', ' + lng.toFixed(6);
-        document.getElementById('d-device').textContent  = card.dataset.device;
-        document.getElementById('d-time').textContent    = card.dataset.time?.substring(0,19) || '-';
-
+    function fillAndShow(d) {
+        const lat = parseFloat(d.latitude), lng = parseFloat(d.longitude);
+        document.getElementById('d-title').textContent   = `病害详情 #${d.id}`;
+        document.getElementById('d-type').textContent    = tLabel(d.defectType);
+        document.getElementById('d-conf').textContent    = `${((d.confidence??0)*100).toFixed(1)}%`;
+        document.getElementById('d-channel').textContent = `通道${d.channel}${d.channel==='A'?'（IMU触发）':'（实时检测）'}`;
+        document.getElementById('d-gps').textContent     = (isNaN(lat)||isNaN(lng)) ? '-' : `${lat.toFixed(6)}, ${lng.toFixed(6)}`;
+        document.getElementById('d-device').textContent  = d.deviceId || '-';
+        document.getElementById('d-time').textContent    = (d.uploadTime??'').toString().substring(0,19) || '-';
         const imgEl = document.getElementById('d-img');
-        if (card.dataset.image && card.dataset.image !== 'null') {
-            imgEl.src = '/images/' + card.dataset.image;
-            imgEl.style.display = 'block';
-        } else {
-            imgEl.style.display = 'none';
-        }
-
+        const imgName = d.imageName ?? '';
+        if (imgName && imgName !== 'null') { imgEl.src = '/images/'+imgName; imgEl.style.display = 'block'; }
+        else { imgEl.style.display = 'none'; }
         document.getElementById('detailPanel').classList.add('show');
         document.getElementById('overlay').classList.add('show');
     }
@@ -286,26 +538,6 @@
     function closeDetail() {
         document.getElementById('detailPanel').classList.remove('show');
         document.getElementById('overlay').classList.remove('show');
-    }
-
-    // 筛选
-    function filterList() {
-        const type    = document.getElementById('filterType').value;
-        const channel = document.getElementById('filterChannel').value;
-        allCards.forEach(card => {
-            const show =
-                (!type    || card.dataset.type    === type) &&
-                (!channel || card.dataset.channel === channel);
-            card.style.display = show ? 'flex' : 'none';
-        });
-    }
-
-    // 自动适配所有标记的地图范围
-    const coords = allCards
-        .map(c => [parseFloat(c.dataset.lat), parseFloat(c.dataset.lng)])
-        .filter(([a,b]) => !isNaN(a) && !isNaN(b));
-    if (coords.length > 0) {
-        map.fitBounds(coords, { padding: [40, 40] });
     }
 </script>
 </body>
