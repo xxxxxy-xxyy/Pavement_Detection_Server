@@ -27,6 +27,35 @@ public class DetectionService {
     @Value("${upload.path}")
     private String uploadPath;
 
+
+    // 各类型置信度阈值注入
+    @Value("${confidence.threshold.crack:0.50}")
+    private float thresholdCrack;
+
+    @Value("${confidence.threshold.patched_crack:0.50}")
+    private float thresholdPatchedCrack;
+
+    @Value("${confidence.threshold.pothole:0.50}")
+    private float thresholdPothole;
+
+    @Value("${confidence.threshold.patched_pothole:0.50}")
+    private float thresholdPatchedPothole;
+
+    @Value("${confidence.threshold.alligator_crack:0.50}")
+    private float thresholdAlligatorCrack;
+
+    @Value("${confidence.threshold.patched_alligator_crack:0.50}")
+    private float thresholdPatchedAlligatorCrack;
+
+    @Value("${confidence.threshold.manhole:0.45}")
+    private float thresholdManhole;
+
+    @Value("${confidence.threshold.street_waste:0.35}")
+    private float thresholdStreetWaste;
+
+    @Value("${confidence.threshold.default:0.50}")
+    private float thresholdDefault;
+
     // 保存一条检测记录（含图片）
     public Detection saveDetection(
             Double latitude, Double longitude,
@@ -62,6 +91,11 @@ public class DetectionService {
         detection.setDeviceId(deviceId);
         detection.setImageName(imageName);
 
+        // 置信度状态判断
+        float threshold = getThreshold(defectType);
+        String status = (confidence != null && confidence >= threshold) ? "normal" : "low";
+        detection.setConfidenceStatus(status);
+
         return detectionRepository.save(detection);
     }
 
@@ -80,13 +114,31 @@ public class DetectionService {
         return filename.substring(filename.lastIndexOf(".") + 1);
     }
 
-    // ===== 新增：分页查询 =====
+    /**
+     * 根据病害类型获取对应置信度阈值
+     */
+    private float getThreshold(String defectType) {
+        if (defectType == null) return thresholdDefault;
+        return switch (defectType) {
+            case "crack"                    -> thresholdCrack;
+            case "patched_crack"            -> thresholdPatchedCrack;
+            case "pothole"                  -> thresholdPothole;
+            case "patched_pothole"          -> thresholdPatchedPothole;
+            case "alligator_crack"          -> thresholdAlligatorCrack;
+            case "patched_alligator_crack"  -> thresholdPatchedAlligatorCrack;
+            case "manhole"                  -> thresholdManhole;
+            case "street_waste"             -> thresholdStreetWaste;
+            default                         -> thresholdDefault;
+        };
+    }
+
+    // 分页查询
     public Page<Detection> getDetectionPage(int page, int size) {
         Pageable pageable = PageRequest.of(page, size, Sort.by(Sort.Direction.DESC, "id"));
         return detectionRepository.findAll(pageable);
     }
 
-    // ===== 新增：统计数据 =====
+    // 统计数据
     public Map<String, Object> getStats() {
         Map<String, Object> stats = new LinkedHashMap<>();
 
@@ -110,5 +162,30 @@ public class DetectionService {
         stats.put("total", detectionRepository.count());
 
         return stats;
+    }
+
+    /**
+     * 运行时刷新阈值（由 ThresholdController 调用）
+     * 从 Environment 重新读取最新值写回字段
+     */
+    @Autowired
+    private org.springframework.core.env.Environment environment;
+
+    public void refreshThresholds() {
+        thresholdCrack                  = parseThreshold("confidence.threshold.crack",                   0.50f);
+        thresholdPatchedCrack           = parseThreshold("confidence.threshold.patched_crack",            0.50f);
+        thresholdPothole                = parseThreshold("confidence.threshold.pothole",                  0.50f);
+        thresholdPatchedPothole         = parseThreshold("confidence.threshold.patched_pothole",          0.50f);
+        thresholdAlligatorCrack         = parseThreshold("confidence.threshold.alligator_crack",          0.50f);
+        thresholdPatchedAlligatorCrack  = parseThreshold("confidence.threshold.patched_alligator_crack",  0.50f);
+        thresholdManhole                = parseThreshold("confidence.threshold.manhole",                  0.45f);
+        thresholdStreetWaste            = parseThreshold("confidence.threshold.street_waste",             0.35f);
+        thresholdDefault                = parseThreshold("confidence.threshold.default",                  0.50f);
+    }
+
+    private float parseThreshold(String key, float fallback) {
+        String val = environment.getProperty(key);
+        if (val == null) return fallback;
+        try { return Float.parseFloat(val); } catch (NumberFormatException e) { return fallback; }
     }
 }

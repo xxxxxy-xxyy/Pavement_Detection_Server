@@ -42,6 +42,9 @@ public class Detection {
     // 设备ID（手机标识）
     private String deviceId;
 
+    // 置信度状态：normal=正常, low=低置信度
+    private String confidenceStatus;
+
     @PrePersist
     public void prePersist() {
         this.uploadTime = LocalDateTime.now();

@@ -52,6 +52,8 @@ public class DetectionController {
             result.put("success", true);
             result.put("id", saved.getId());
             result.put("message", "上传成功");
+            // 返回置信度状态，APP 可选择性提示用户
+            result.put("confidenceStatus", saved.getConfidenceStatus());
             return ResponseEntity.ok(result);
 
         } catch (Exception e) {
