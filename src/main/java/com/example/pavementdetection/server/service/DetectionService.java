@@ -13,6 +13,7 @@ import org.springframework.web.multipart.MultipartFile;
 
 import java.io.File;
 import java.io.IOException;
+import java.time.LocalDateTime;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
@@ -170,6 +171,23 @@ public class DetectionService {
      */
     @Autowired
     private org.springframework.core.env.Environment environment;
+
+
+    /**
+     * 更新处理状态
+     * @param id           记录ID
+     * @param handleStatus 新状态：pending / processing / resolved / ignored
+     * @param operator     操作人（当前登录用户名）
+     * @return 更新后的记录，不存在返回 null
+     */
+    public Detection updateHandleStatus(Long id, String handleStatus, String operator) {
+        return detectionRepository.findById(id).map(d -> {
+            d.setHandleStatus(handleStatus);
+            d.setHandleBy(operator);
+            d.setHandleTime(LocalDateTime.now());
+            return detectionRepository.save(d);
+        }).orElse(null);
+    }
 
     public void refreshThresholds() {
         thresholdCrack                  = parseThreshold("confidence.threshold.crack",                   0.50f);

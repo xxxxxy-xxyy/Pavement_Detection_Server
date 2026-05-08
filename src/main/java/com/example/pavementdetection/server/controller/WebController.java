@@ -26,12 +26,19 @@ public class WebController {
     @Value("${upload.path}")
     private String uploadPath;
 
+    @GetMapping("/login")
+    public String loginPage() {
+        // 已登录则直接跳主页
+        return "login";
+    }
+
     // 主页：地图+列表
     @GetMapping("/")
-    public String index(Model model) {
+    public String index(Model model, jakarta.servlet.http.HttpSession session) {
         List<Detection> detections = detectionService.getAllDetections();
         model.addAttribute("detections", detections);
         model.addAttribute("total", detections.size());
+        model.addAttribute("loginUser", session.getAttribute("loginUser"));
         return "index";
     }
 

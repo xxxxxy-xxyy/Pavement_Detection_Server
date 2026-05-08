@@ -26,4 +26,11 @@ public interface DetectionRepository extends JpaRepository<Detection, Long> {
             "ORDER BY day ASC",
             nativeQuery = true)
     List<Object[]> countByDay();
+
+    // 按处理状态查询
+    List<Detection> findByHandleStatus(String handleStatus);
+
+    // 统计各处理状态数量（用于统计面板）
+    @Query("SELECT d.handleStatus, COUNT(d) FROM Detection d GROUP BY d.handleStatus")
+    List<Object[]> countByHandleStatus();
 }

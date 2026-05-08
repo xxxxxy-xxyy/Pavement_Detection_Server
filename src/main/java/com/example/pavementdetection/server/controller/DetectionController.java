@@ -87,7 +87,7 @@ public class DetectionController {
 
 
     // 删除单条记录
-// DELETE /api/detection/{id}
+    // DELETE /api/detection/{id}
     @DeleteMapping("/{id}")
     public ResponseEntity<?> delete(@PathVariable Long id) {
         if (!detectionRepository.existsById(id)) {
@@ -97,8 +97,38 @@ public class DetectionController {
         return ResponseEntity.ok(Map.of("success", true, "id", id));
     }
 
+
+    /**
+     * 更新处理状态
+     * PATCH /api/detection/{id}/status
+     * Body: { "handleStatus": "resolved" }
+     */
+    @PatchMapping("/{id}/status")
+    public ResponseEntity<?> updateStatus(
+            @PathVariable Long id,
+            @RequestBody Map<String, String> body,
+            jakarta.servlet.http.HttpSession session) {
+
+        String handleStatus = body.get("handleStatus");
+        // 合法性校验
+        if (!List.of("pending", "processing", "resolved", "ignored").contains(handleStatus)) {
+            return ResponseEntity.badRequest().body(Map.of("success", false, "message", "无效的状态值"));
+        }
+        String operator = (String) session.getAttribute("loginUser");
+        Detection updated = detectionService.updateHandleStatus(id, handleStatus, operator);
+        if (updated == null) {
+            return ResponseEntity.notFound().build();
+        }
+        return ResponseEntity.ok(Map.of(
+                "success", true,
+                "handleStatus", updated.getHandleStatus(),
+                "handleBy",     updated.getHandleBy(),
+                "handleTime",   updated.getHandleTime().toString()
+        ));
+    }
+
     // 导出全量数据（支持筛选）
-// GET /api/detection/export?defectType=crack&channel=A
+    // GET /api/detection/export?defectType=crack&channel=A
     @GetMapping("/export")
     public ResponseEntity<?> export(
             @RequestParam(required = false) String defectType,

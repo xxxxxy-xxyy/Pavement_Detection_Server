@@ -1,0 +1,405 @@
+<!DOCTYPE html>
+<html xmlns:th="http://www.thymeleaf.org">
+<head>
+    <meta charset="UTF-8">
+    <title>路面病害检测管理平台 — 登录</title>
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+
+        body {
+            font-family: 'Microsoft YaHei', sans-serif;
+            background: #070e1f;
+            min-height: 100vh;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            overflow: hidden;
+        }
+
+        /* ── 动态粒子背景 ── */
+        #canvas-bg {
+            position: fixed;
+            inset: 0;
+            z-index: 0;
+        }
+
+        /* ── 扫描线叠加 ── */
+        body::after {
+            content: '';
+            position: fixed;
+            inset: 0;
+            background: repeating-linear-gradient(
+                    0deg,
+                    transparent,
+                    transparent 2px,
+                    rgba(0, 150, 255, 0.015) 2px,
+                    rgba(0, 150, 255, 0.015) 4px
+            );
+            pointer-events: none;
+            z-index: 1;
+        }
+
+        /* ── 卡片 ── */
+        .card {
+            position: relative;
+            z-index: 10;
+            background: rgba(10, 20, 45, 0.85);
+            border: 1px solid rgba(79, 195, 247, 0.2);
+            border-radius: 16px;
+            padding: 44px 48px;
+            width: 420px;
+            backdrop-filter: blur(18px);
+            box-shadow:
+                    0 0 0 1px rgba(79, 195, 247, 0.05),
+                    0 24px 64px rgba(0, 0, 0, 0.6),
+                    inset 0 1px 0 rgba(255,255,255,0.05);
+            animation: cardIn 0.6s cubic-bezier(0.22, 1, 0.36, 1) both;
+        }
+
+        @keyframes cardIn {
+            from { opacity: 0; transform: translateY(24px) scale(0.97); }
+            to   { opacity: 1; transform: translateY(0)    scale(1); }
+        }
+
+        /* 卡片顶部光晕 */
+        .card::before {
+            content: '';
+            position: absolute;
+            top: -1px; left: 20%; right: 20%;
+            height: 1px;
+            background: linear-gradient(90deg, transparent, rgba(79,195,247,0.6), transparent);
+        }
+
+        /* ── Logo 区域 ── */
+        .logo { text-align: center; margin-bottom: 32px; }
+
+        .logo-icon-wrap {
+            width: 64px; height: 64px;
+            margin: 0 auto 14px;
+            background: linear-gradient(135deg, #0d2a5e, #1a4a9e);
+            border-radius: 16px;
+            border: 1px solid rgba(79,195,247,0.3);
+            display: flex; align-items: center; justify-content: center;
+            font-size: 30px;
+            box-shadow: 0 0 24px rgba(79,195,247,0.15), 0 4px 12px rgba(0,0,0,0.4);
+            animation: iconPulse 3s ease-in-out infinite;
+        }
+
+        @keyframes iconPulse {
+            0%, 100% { box-shadow: 0 0 24px rgba(79,195,247,0.15), 0 4px 12px rgba(0,0,0,0.4); }
+            50%       { box-shadow: 0 0 36px rgba(79,195,247,0.35), 0 4px 12px rgba(0,0,0,0.4); }
+        }
+
+        .logo h1 {
+            color: #e3f2fd;
+            font-size: 18px;
+            font-weight: 600;
+            letter-spacing: 1px;
+        }
+        .logo p {
+            color: rgba(79,195,247,0.5);
+            font-size: 11px;
+            margin-top: 5px;
+            letter-spacing: 2px;
+        }
+
+        /* ── Tab ── */
+        .tabs {
+            display: flex;
+            background: rgba(255,255,255,0.04);
+            border-radius: 8px;
+            padding: 3px;
+            margin-bottom: 28px;
+            gap: 3px;
+        }
+
+        .tab-btn {
+            flex: 1;
+            padding: 8px 0;
+            background: none;
+            border: none;
+            color: rgba(120,160,210,0.7);
+            font-size: 13px;
+            cursor: pointer;
+            font-family: inherit;
+            border-radius: 6px;
+            transition: all 0.2s;
+            letter-spacing: 2px;
+        }
+
+        .tab-btn.active {
+            background: rgba(79,195,247,0.12);
+            color: #4fc3f7;
+            box-shadow: 0 0 0 1px rgba(79,195,247,0.2);
+        }
+
+        /* ── 表单 ── */
+        .form-group { margin-bottom: 18px; }
+
+        .form-group label {
+            display: block;
+            color: rgba(120,160,210,0.8);
+            font-size: 11px;
+            margin-bottom: 7px;
+            letter-spacing: 1px;
+        }
+
+        .input-wrap { position: relative; }
+
+        .input-wrap .input-icon {
+            position: absolute;
+            left: 13px; top: 50%;
+            transform: translateY(-50%);
+            color: rgba(79,195,247,0.4);
+            font-size: 15px;
+            pointer-events: none;
+            transition: color 0.2s;
+        }
+
+        .form-group input {
+            width: 100%;
+            padding: 11px 14px 11px 38px;
+            background: rgba(255,255,255,0.04);
+            border: 1px solid rgba(79,195,247,0.15);
+            border-radius: 8px;
+            color: #c8d8f0;
+            font-size: 13px;
+            font-family: inherit;
+            outline: none;
+            transition: all 0.2s;
+        }
+
+        .form-group input::placeholder { color: rgba(100,140,190,0.4); }
+
+        .form-group input:focus {
+            border-color: rgba(79,195,247,0.5);
+            background: rgba(79,195,247,0.05);
+            box-shadow: 0 0 0 3px rgba(79,195,247,0.08);
+        }
+
+        .form-group input:focus + .input-icon,
+        .input-wrap:focus-within .input-icon {
+            color: rgba(79,195,247,0.8);
+        }
+
+        /* ── 提交按钮 ── */
+        .btn-submit {
+            width: 100%;
+            padding: 12px;
+            background: linear-gradient(135deg, #1565c0, #1976d2);
+            color: white;
+            border: none;
+            border-radius: 8px;
+            font-size: 14px;
+            font-family: inherit;
+            cursor: pointer;
+            margin-top: 8px;
+            letter-spacing: 3px;
+            position: relative;
+            overflow: hidden;
+            transition: all 0.2s;
+            box-shadow: 0 4px 16px rgba(21,101,192,0.4);
+        }
+
+        .btn-submit::before {
+            content: '';
+            position: absolute;
+            top: 0; left: -100%;
+            width: 100%; height: 100%;
+            background: linear-gradient(90deg, transparent, rgba(255,255,255,0.1), transparent);
+            transition: left 0.4s;
+        }
+
+        .btn-submit:hover { transform: translateY(-1px); box-shadow: 0 6px 24px rgba(21,101,192,0.5); }
+        .btn-submit:hover::before { left: 100%; }
+        .btn-submit:active { transform: translateY(0); }
+
+        /* ── 消息提示 ── */
+        .msg {
+            border-radius: 7px;
+            padding: 10px 13px;
+            font-size: 12px;
+            margin-bottom: 18px;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            animation: msgIn 0.3s ease both;
+        }
+        @keyframes msgIn {
+            from { opacity: 0; transform: translateY(-6px); }
+            to   { opacity: 1; transform: translateY(0); }
+        }
+        .msg-error   { background: rgba(183,28,28,0.15); border: 1px solid rgba(229,57,53,0.3); color: #ef9a9a; }
+        .msg-success { background: rgba(27,94,32,0.15);  border: 1px solid rgba(67,160,71,0.3);  color: #a5d6a7; }
+
+        /* ── Tab 面板 ── */
+        .tab-pane { display: none; }
+        .tab-pane.active {
+            display: block;
+            animation: paneIn 0.25s ease both;
+        }
+        @keyframes paneIn {
+            from { opacity: 0; transform: translateX(8px); }
+            to   { opacity: 1; transform: translateX(0); }
+        }
+
+        /* ── 底部版权 ── */
+        .footer {
+            text-align: center;
+            margin-top: 24px;
+            color: rgba(79,195,247,0.2);
+            font-size: 10px;
+            letter-spacing: 1px;
+        }
+    </style>
+</head>
+<body>
+
+<canvas id="canvas-bg"></canvas>
+
+<div class="card">
+    <div class="logo">
+        <div class="logo-icon-wrap">🛣️</div>
+        <h1>路面病害检测管理平台</h1>
+        <p>PAVEMENT DETECTION SYSTEM</p>
+    </div>
+
+    <div class="tabs">
+        <button class="tab-btn" id="tab-login"    onclick="switchTab('login')">登　录</button>
+        <button class="tab-btn" id="tab-register" onclick="switchTab('register')">注　册</button>
+    </div>
+
+    <!-- 登录面板 -->
+    <div class="tab-pane" id="pane-login">
+        <div class="msg msg-error"   th:if="${error}"      th:text="'⚠ ' + ${error}"></div>
+        <div class="msg msg-success" th:if="${regSuccess}" th:text="'✓ ' + ${regSuccess}"></div>
+        <form method="post" action="/login">
+            <div class="form-group">
+                <label>用 户 名</label>
+                <div class="input-wrap">
+                    <input type="text" name="username" placeholder="请输入用户名" autocomplete="username" required/>
+                    <span class="input-icon">◈</span>
+                </div>
+            </div>
+            <div class="form-group">
+                <label>密　　码</label>
+                <div class="input-wrap">
+                    <input type="password" name="password" placeholder="请输入密码" autocomplete="current-password" required/>
+                    <span class="input-icon">◉</span>
+                </div>
+            </div>
+            <button type="submit" class="btn-submit">登　录</button>
+        </form>
+    </div>
+
+    <!-- 注册面板 -->
+    <div class="tab-pane" id="pane-register">
+        <div class="msg msg-error" th:if="${regError}" th:text="'⚠ ' + ${regError}"></div>
+        <form method="post" action="/register">
+            <div class="form-group">
+                <label>用户名（至少3位）</label>
+                <div class="input-wrap">
+                    <input type="text" name="username" placeholder="请设置用户名" autocomplete="username" required/>
+                    <span class="input-icon">◈</span>
+                </div>
+            </div>
+            <div class="form-group">
+                <label>密码（至少6位）</label>
+                <div class="input-wrap">
+                    <input type="password" name="password" placeholder="请设置密码" autocomplete="new-password" required/>
+                    <span class="input-icon">◉</span>
+                </div>
+            </div>
+            <div class="form-group">
+                <label>确认密码</label>
+                <div class="input-wrap">
+                    <input type="password" name="confirmPassword" placeholder="再次输入密码" autocomplete="new-password" required/>
+                    <span class="input-icon">◉</span>
+                </div>
+            </div>
+            <button type="submit" class="btn-submit">注　册</button>
+        </form>
+    </div>
+
+    <div class="footer">东南大学成贤学院 · 电子与计算机工程学院 · 大创项目</div>
+</div>
+
+<script>
+    // ── Tab 切换 ──
+    const defaultTab = '[[${tab != null ? tab : "login"}]]';
+    switchTab(defaultTab);
+
+    function switchTab(name) {
+        document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
+        document.querySelectorAll('.tab-pane').forEach(p => p.classList.remove('active'));
+        document.getElementById('tab-' + name).classList.add('active');
+        document.getElementById('pane-' + name).classList.add('active');
+    }
+
+    // ── 粒子背景 ──
+    const canvas = document.getElementById('canvas-bg');
+    const ctx    = canvas.getContext('2d');
+    let W, H, particles, lines;
+
+    function resize() {
+        W = canvas.width  = window.innerWidth;
+        H = canvas.height = window.innerHeight;
+    }
+
+    function initParticles() {
+        const count = Math.floor((W * H) / 14000);
+        particles = Array.from({ length: count }, () => ({
+            x:  Math.random() * W,
+            y:  Math.random() * H,
+            vx: (Math.random() - 0.5) * 0.4,
+            vy: (Math.random() - 0.5) * 0.4,
+            r:  Math.random() * 1.5 + 0.5,
+            alpha: Math.random() * 0.5 + 0.2
+        }));
+    }
+
+    function draw() {
+        ctx.clearRect(0, 0, W, H);
+
+        // 粒子移动
+        particles.forEach(p => {
+            p.x += p.vx; p.y += p.vy;
+            if (p.x < 0) p.x = W;
+            if (p.x > W) p.x = 0;
+            if (p.y < 0) p.y = H;
+            if (p.y > H) p.y = 0;
+
+            ctx.beginPath();
+            ctx.arc(p.x, p.y, p.r, 0, Math.PI * 2);
+            ctx.fillStyle = `rgba(79,195,247,${p.alpha})`;
+            ctx.fill();
+        });
+
+        // 连线
+        const DIST = 120;
+        for (let i = 0; i < particles.length; i++) {
+            for (let j = i + 1; j < particles.length; j++) {
+                const dx = particles[i].x - particles[j].x;
+                const dy = particles[i].y - particles[j].y;
+                const d  = Math.sqrt(dx * dx + dy * dy);
+                if (d < DIST) {
+                    ctx.beginPath();
+                    ctx.moveTo(particles[i].x, particles[i].y);
+                    ctx.lineTo(particles[j].x, particles[j].y);
+                    ctx.strokeStyle = `rgba(79,195,247,${0.12 * (1 - d / DIST)})`;
+                    ctx.lineWidth = 0.5;
+                    ctx.stroke();
+                }
+            }
+        }
+
+        requestAnimationFrame(draw);
+    }
+
+    window.addEventListener('resize', () => { resize(); initParticles(); });
+    resize();
+    initParticles();
+    draw();
+</script>
+</body>
+</html>

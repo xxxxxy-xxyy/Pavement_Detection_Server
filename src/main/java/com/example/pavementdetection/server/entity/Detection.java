@@ -45,8 +45,19 @@ public class Detection {
     // 置信度状态：normal=正常, low=低置信度
     private String confidenceStatus;
 
+    // 处理状态：pending=待处理, processing=处理中, resolved=已解决, ignored=已忽略
+    private String handleStatus;
+
+    // 处理人（登录用户名）
+    private String handleBy;
+
+    // 处理时间
+    @JsonFormat(pattern = "yyyy-MM-dd HH:mm:ss")
+    private LocalDateTime handleTime;
+
     @PrePersist
     public void prePersist() {
         this.uploadTime = LocalDateTime.now();
+        this.handleStatus = "pending"; // 新记录默认待处理
     }
 }
