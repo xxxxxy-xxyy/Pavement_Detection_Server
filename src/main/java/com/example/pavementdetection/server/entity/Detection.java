@@ -55,6 +55,15 @@ public class Detection {
     @JsonFormat(pattern = "yyyy-MM-dd HH:mm:ss")
     private LocalDateTime handleTime;
 
+    // 严重程度评分（0~10+，计算值）
+    private Float severityScore;
+
+    // 严重程度等级：low / medium / high / critical
+    private String severityLevel;
+
+    // 处理后图片文件名（已解决时上传）
+    private String afterImageName;
+
     @PrePersist
     public void prePersist() {
         this.uploadTime = LocalDateTime.now();

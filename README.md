@@ -33,10 +33,10 @@ pavement_detection_server/
 │   │   ├── DetectionRepository.java # JPA + 统计查询
 │   │   └── UserRepository.java      # 用户查询
 │   ├── service/
-│   │   ├── DetectionService.java    # 检测业务 + 置信度过滤 + 动态阈值刷新
+│   │   ├── DetectionService.java    # 检测业务 + 置信度过滤 + 严重程度评级 + 动态阈值刷新
 │   │   └── UserService.java         # 注册 / 登录（BCrypt）
 │   ├── controller/
-│   │   ├── DetectionController.java # 检测 REST API
+│   │   ├── DetectionController.java # 检测 REST API（含图片对比验证接口）
 │   │   ├── ThresholdController.java # 阈值动态管理 API
 │   │   ├── AuthController.java      # 登录 / 注册 / 登出
 │   │   └── WebController.java       # 页面路由 + 图片访问
@@ -71,6 +71,7 @@ spring.datasource.driver-class-name=com.mysql.cj.jdbc.Driver
 spring.jpa.hibernate.ddl-auto=update
 spring.jpa.show-sql=true
 spring.jpa.properties.hibernate.dialect=org.hibernate.dialect.MySQLDialect
+spring.thymeleaf.cache=false
 
 spring.servlet.multipart.max-file-size=50MB
 spring.servlet.multipart.max-request-size=50MB
@@ -95,10 +96,13 @@ confidence.threshold.default=0.50
 CREATE DATABASE collectdata_db CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;
 
 -- 已有 detections 表时手动补字段（新建表 JPA 自动创建）
-ALTER TABLE detections ADD COLUMN confidence_status VARCHAR(10)  DEFAULT 'normal';
-ALTER TABLE detections ADD COLUMN handle_status     VARCHAR(20)  DEFAULT 'pending';
-ALTER TABLE detections ADD COLUMN handle_by         VARCHAR(50)  DEFAULT NULL;
-ALTER TABLE detections ADD COLUMN handle_time       DATETIME     DEFAULT NULL;
+ALTER TABLE detections ADD COLUMN confidence_status  VARCHAR(10)  DEFAULT 'normal';
+ALTER TABLE detections ADD COLUMN handle_status      VARCHAR(20)  DEFAULT 'pending';
+ALTER TABLE detections ADD COLUMN handle_by          VARCHAR(50)  DEFAULT NULL;
+ALTER TABLE detections ADD COLUMN handle_time        DATETIME     DEFAULT NULL;
+ALTER TABLE detections ADD COLUMN severity_score     FLOAT        DEFAULT NULL;
+ALTER TABLE detections ADD COLUMN severity_level     VARCHAR(10)  DEFAULT NULL;
+ALTER TABLE detections ADD COLUMN after_image_name   VARCHAR(255) DEFAULT NULL;
 ```
 
 ---
@@ -110,12 +114,13 @@ ALTER TABLE detections ADD COLUMN handle_time       DATETIME     DEFAULT NULL;
 | 方法 | 路径 | 说明 |
 |------|------|------|
 | POST | `/api/detection/upload` | APP 上传检测记录（含图片） |
-| GET | `/api/detection/list?page=0&size=20` | 分页查询 |
-| GET | `/api/detection/stats` | 统计（类型分布 / 30天趋势 / 总数） |
+| GET | `/api/detection/list?page=0&size=20` | 分页查询（按严重程度降序） |
+| GET | `/api/detection/stats` | 统计（类型分布 / 30天趋势 / 总数 / 严重程度分布） |
 | DELETE | `/api/detection/{id}` | 删除单条记录 |
-| PATCH | `/api/detection/{id}/status` | 更新处理状态 |
+| PATCH | `/api/detection/{id}/status` | 更新处理状态（pending/processing/ignored，切回时自动清除处理后图片） |
+| POST | `/api/detection/{id}/resolve-with-image` | 上传处理后图片并标记已解决 |
 | GET | `/api/detection/export?defectType=&channel=` | 导出 CSV（支持筛选） |
-| GET | `/images/{filename}` | 访问检测图片 |
+| GET | `/images/{filename}` | 访问检测图片（含处理后图片） |
 
 ### 阈值管理
 
@@ -145,9 +150,27 @@ ALTER TABLE detections ADD COLUMN handle_time       DATETIME     DEFAULT NULL;
 | deviceId | String | 设备唯一 ID |
 | image | File | 检测帧图片（可选） |
 
-响应示例：
+upload 响应示例：
 ```json
-{ "success": true, "id": 42, "message": "上传成功", "confidenceStatus": "normal" }
+{
+  "success": true,
+  "id": 42,
+  "message": "上传成功",
+  "confidenceStatus": "normal",
+  "severityLevel": "high",
+  "severityScore": 6.38
+}
+```
+
+resolve-with-image 响应示例：
+```json
+{
+  "success": true,
+  "handleStatus": "resolved",
+  "handleBy": "admin",
+  "handleTime": "2026-05-09T10:23:38",
+  "afterImageName": "after_xxxx-xxxx.jpg"
+}
 ```
 
 ---
@@ -162,15 +185,18 @@ ALTER TABLE detections ADD COLUMN handle_time       DATETIME     DEFAULT NULL;
 | latitude / longitude | DOUBLE | GPS 坐标 |
 | defect_type | VARCHAR | 病害类型 |
 | confidence | FLOAT | 置信度 0～1 |
-| bbox_x1/y1/x2/y2 | FLOAT | 检测框坐标 |
+| bboxx1/y1/x2/y2 | FLOAT | 检测框坐标（JPA驼峰转换，注意列名无下划线） |
 | channel | VARCHAR | A / B |
 | device_id | VARCHAR | 设备标识 |
-| image_name | VARCHAR | 图片文件名 |
+| image_name | VARCHAR | 检测帧图片文件名 |
+| after_image_name | VARCHAR | 处理后图片文件名 |
 | upload_time | DATETIME | 上传时间（自动填充） |
 | confidence_status | VARCHAR | normal / low |
 | handle_status | VARCHAR | pending / processing / resolved / ignored |
 | handle_by | VARCHAR | 处理人（登录用户名） |
 | handle_time | DATETIME | 处理时间 |
+| severity_score | FLOAT | 严重程度评分（0～15+） |
+| severity_level | VARCHAR | low / medium / high / critical |
 
 ### users 表
 
@@ -185,52 +211,61 @@ ALTER TABLE detections ADD COLUMN handle_time       DATETIME     DEFAULT NULL;
 
 ## 病害类型对照表
 
-| 英文标识 | 中文名称 | 默认阈值 |
-|----------|----------|----------|
-| crack | 裂缝 | 0.50 |
-| patched_crack | 修补后裂缝 | 0.50 |
-| pothole | 坑槽 | 0.50 |
-| patched_pothole | 修补后坑槽 | 0.50 |
-| alligator_crack | 网裂 | 0.50 |
-| patched_alligator_crack | 修补后网裂 | 0.50 |
-| manhole | 检查井 | 0.45 |
-| street_waste | 路面垃圾 | 0.35 |
+| 英文标识 | 中文名称 | 默认阈值 | 严重程度基础分 |
+|----------|----------|----------|----------------|
+| crack | 裂缝 | 0.50 | 7 |
+| patched_crack | 修补后裂缝 | 0.50 | 4 |
+| pothole | 坑槽 | 0.50 | 10 |
+| patched_pothole | 修补后坑槽 | 0.50 | 7 |
+| alligator_crack | 网裂 | 0.50 | 10 |
+| patched_alligator_crack | 修补后网裂 | 0.50 | 4 |
+| manhole | 检查井 | 0.45 | 6 |
+| street_waste | 路面垃圾 | 0.35 | 3 |
 
 ---
 
-## Web 管理平台功能
+## 严重程度评级机制
 
-访问 `http://localhost:8080`（未登录自动跳转登录页）。
+```
+severityScore = 类型基础分 × confidence × bbox面积系数
 
-### 登录 / 注册页
-- 粒子连线动态背景 + 毛玻璃卡片，与主平台深色主题统一
-- 支持多用户注册，密码 BCrypt 哈希存储
-- Session 8小时有效，顶部显示当前登录用户名 + 退出按钮
+bbox面积系数（归一化面积 = (x2-x1)×(y2-y1)）：
+  面积 > 0.10  → × 1.5
+  面积 > 0.04  → × 1.2
+  其他         → × 1.0
 
-### 统计面板
-- 病害类型分布**饼图** + 近30天**趋势折线图**（原生 Canvas，兼容 Edge 跟踪防护）
-- 顶部实时显示总记录数
+分级规则：
+  score >= 7.0  → critical（紧急，红色标签）
+  score >= 4.5  → high    （高危，橙色标签）
+  score >= 2.5  → medium  （中危，黄色标签）
+  其他          → low     （低危，绿色标签）
 
-### 地图可视化
-- Leaflet + OpenStreetMap，标记按病害类型颜色区分
-- 点击标记定位卡片，切换页面自动同步
+列表排序：按 severity_score DESC，同分按 id DESC
+旧数据（score=NULL）自动排末尾
+```
 
-### 记录列表
-- 每页20条分页，按病害类型 / 触发通道筛选
-- 低于阈值记录置灰 +「低置信度」标签，排列末尾
-- 卡片显示处理状态彩色标签（待处理 / 处理中 / 已解决 / 已忽略）
-- 悬停显示删除按钮，二次确认后删除并同步地图和统计
+---
 
-### 详情弹窗
-- 检测图片、GPS 坐标、置信度、通道、设备ID、上传时间
-- **处理状态一键切换**：四个状态按钮，点击即保存，记录处理人和处理时间
+## 处理前后图片对比机制
 
-### 阈值设置
-- 顶部「⚙ 阈值设置」按钮，8种类型独立滑块
-- 保存后**运行时立即生效**，无需重启服务
+```
+点击「已解决」
+  └→ 右侧出现「点击上传处理后照片」虚线区域
+       └→ 选择图片 → 本地预览（dataset.loaded='preview'）
+            └→ 点「确认已解决」→ POST /resolve-with-image
+                 └→ 图片保存为 after_{uuid}.jpg
+                      └→ 详情弹窗左右对比展示
 
-### 数据导出
-- 按筛选条件全量导出 CSV，UTF-8 BOM，Excel 中文不乱码
+切换到其他状态（pending/processing/ignored）
+  └→ 自动删除磁盘文件
+       └→ after_image_name 清空
+            └→ 前端同步隐藏处理后图片
+
+切换记录时重置：
+  - afterImageInput 强制清空（type=text→file trick）
+  - btnResolve 隐藏并重置 disabled/textContent
+  - dataset.loaded = 'false'
+```
 
 ---
 
@@ -250,15 +285,45 @@ APP 上传
 
 ---
 
-## 任务处理闭环
+## Web 管理平台功能
 
-```
-检测上传 → handle_status = "pending"（默认）
-  └→ 管理员打开详情弹窗
-       └→ 点击状态按钮 → PATCH /api/detection/{id}/status
-            └→ 记录 handle_by（操作人）+ handle_time
-                 └→ 列表卡片状态标签实时更新
-```
+访问 `http://localhost:8080`（未登录自动跳转登录页）。
+
+### 登录 / 注册页
+- 粒子连线动态背景 + 毛玻璃卡片
+- 多用户注册，密码 BCrypt 哈希存储
+- Session 8小时有效，顶部显示登录用户名 + 退出按钮
+
+### 统计面板（四个区块）
+- **总记录数**：实时显示
+- **病害类型分布**：原生 Canvas 饼图
+- **严重程度分布**：四级横向条形图（紧急/高危/中危/低危）
+- **近30天检测趋势**：原生 Canvas 折线图
+
+### 地图可视化
+- Leaflet + OpenStreetMap，标记按病害类型颜色区分
+- 点击标记定位卡片，切换页面自动同步地图视角
+
+### 记录列表
+- 每页20条分页，按**严重程度降序**排列
+- 按病害类型 / 触发通道筛选
+- 卡片标签：通道 + **严重程度**（彩色）+ 低置信度 + 处理状态
+- 低于阈值记录置灰排末尾
+- 悬停显示删除按钮，二次确认删除
+
+### 详情弹窗
+- **处理前后图片左右对比**（处理后区域支持点击上传）
+- GPS 坐标、置信度、通道、设备ID、上传时间
+- 处理状态四按钮切换：
+    - 待处理 / 处理中 / 已忽略：直接切换，从已解决切回时自动清除处理后图片
+    - **已解决：必须上传处理后图片才能标记**，形成验收闭环
+- 记录处理人 + 处理时间
+
+### 阈值设置
+- 8种类型独立滑块，保存后运行时立即生效，无需重启
+
+### 数据导出
+- 按筛选条件全量导出 CSV，UTF-8 BOM，Excel 中文不乱码
 
 ---
 
@@ -294,10 +359,15 @@ implementation("com.squareup.okhttp3:okhttp:4.12.0")
 | 统计图表空白 | Edge 拦截 Chart.js CDN | 改用原生 Canvas 自绘 |
 | `response already committed` | 内联大体积 JS 超缓冲区 | 改静态文件或原生实现 |
 | IP 变动上传失败 | 代理工具改变路由 | 关代理或设静态 IP |
-| 改 HTML 不生效 | Thymeleaf 模板缓存 | 修改后重启 Spring Boot |
+| 改 HTML 不生效 | Thymeleaf 模板缓存 | `spring.thymeleaf.cache=false` + 重启 |
 | `confidence_status` 列不存在 | `ddl-auto=update` 不对已有表加列 | 手动执行 ALTER TABLE |
-| 阈值改了不生效 | `@Value` 仅初始化时注入 | 新增 `refreshThresholds()` 手动重读 Environment |
+| 阈值改了不生效 | `@Value` 仅初始化时注入 | `refreshThresholds()` 手动重读 Environment |
 | APP 上传被拦截返回 302 | 拦截器未排除上传接口 | WebConfig 排除 `/api/detection/upload` |
+| bbox 列名不含下划线 | JPA 驼峰转换规则（bboxX1→bboxx1） | SQL 直接用 `bboxx1` 而非 `bbox_x1` |
+| 处理后图片切换记录残留 | file input 无法用 `value=''` 清空 | `type=text` 再改回 `type=file` 强制清空 |
+| 「已解决」按钮卡住上传中 | `btn.disabled/textContent` 未在两处重置 | `fillAndShow` 和成功回调均重置按钮状态 |
+| `src.endsWith('/images/')` 判断失效 | 浏览器将相对路径补全为完整 URL | 改用 `dataset.loaded='true/false/preview'` 标记 |
+| 切换记录后状态高亮错误 | 卡片 `data-*` 缺少 handle 相关属性 | 模板加 `data-handle-status/by/time`，selectCard 完整传递 |
 
 ---
 
@@ -311,5 +381,9 @@ implementation("com.squareup.okhttp3:okhttp:4.12.0")
 | Web 界面动态调整阈值（运行时生效） | ✅ |
 | 登录注册系统（BCrypt + Session） | ✅ |
 | 任务处理状态管理（检测-管理闭环） | ✅ |
-| 系统架构图 | ✅ |
+| **严重程度自动评级**（多维度评分+分级+排序） | ✅ |
+| **处理前后图片对比验证**（上传验收闭环） | ✅ |
+| **严重程度统计面板**（条形图） | ✅ |
+| 热力图 | ⬜ 待完成 |
+| 区域聚合去重 | ⬜ 待完成 |
 | 云服务器部署 | ⬜ 待完成 |

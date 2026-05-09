@@ -33,4 +33,8 @@ public interface DetectionRepository extends JpaRepository<Detection, Long> {
     // 统计各处理状态数量（用于统计面板）
     @Query("SELECT d.handleStatus, COUNT(d) FROM Detection d GROUP BY d.handleStatus")
     List<Object[]> countByHandleStatus();
+
+    // 按严重程度等级分组统计
+    @Query("SELECT d.severityLevel, COUNT(d) FROM Detection d GROUP BY d.severityLevel")
+    List<Object[]> countBySeverityLevel();
 }
