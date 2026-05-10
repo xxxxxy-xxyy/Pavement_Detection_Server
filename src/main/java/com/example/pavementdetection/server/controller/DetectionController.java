@@ -169,4 +169,10 @@ public class DetectionController {
                 .toList();
         return ResponseEntity.ok(filtered);
     }
+
+    @GetMapping("/heatmap")
+    @ResponseBody
+    public List<Map<String, Object>> getHeatmapData() {
+        return detectionService.getHeatmapPoints();
+    }
 }

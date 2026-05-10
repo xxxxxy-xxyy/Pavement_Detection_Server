@@ -14,10 +14,7 @@ import org.springframework.web.multipart.MultipartFile;
 import java.io.File;
 import java.io.IOException;
 import java.time.LocalDateTime;
-import java.util.LinkedHashMap;
-import java.util.List;
-import java.util.Map;
-import java.util.UUID;
+import java.util.*;
 
 @Service
 public class DetectionService {
@@ -319,4 +316,21 @@ public class DetectionService {
         if (filename == null || !filename.contains(".")) return "jpg";
         return filename.substring(filename.lastIndexOf(".") + 1);
     }
+
+    public List<Map<String, Object>> getHeatmapPoints() {
+        List<Detection> all = detectionRepository.findAll();
+        List<Map<String, Object>> points = new ArrayList<>();
+        for (Detection d : all) {
+            if (d.getLatitude() == null || d.getLongitude() == null) continue;
+            Map<String, Object> p = new HashMap<>();
+            p.put("lat", d.getLatitude());
+            p.put("lng", d.getLongitude());
+            // 用 severityScore 作为热力权重，没有则用 1.0
+            p.put("weight", d.getSeverityScore() != null ? d.getSeverityScore() : 1.0);
+            points.add(p);
+        }
+        return points;
+    }
+
+
 }

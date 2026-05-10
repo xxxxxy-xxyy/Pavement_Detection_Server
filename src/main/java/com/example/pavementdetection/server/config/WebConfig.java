@@ -1,21 +1,37 @@
 package com.example.pavementdetection.server.config;
 
+
+import com.example.pavementdetection.server.interceptor.AppTokenInterceptor;
 import com.example.pavementdetection.server.interceptor.LoginInterceptor;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.context.annotation.Configuration;
-import org.springframework.web.servlet.config.annotation.*;
+import org.springframework.web.servlet.config.annotation.InterceptorRegistry;
+import org.springframework.web.servlet.config.annotation.WebMvcConfigurer;
+
 
 @Configuration
 public class WebConfig implements WebMvcConfigurer {
 
+    @Autowired private LoginInterceptor loginInterceptor;
+    @Autowired
+    private AppTokenInterceptor appTokenInterceptor;
+
     @Override
     public void addInterceptors(InterceptorRegistry registry) {
-        registry.addInterceptor(new LoginInterceptor())
-                .addPathPatterns("/**")           // 拦截所有路径
+
+        // ① Web 管理平台拦截器（只管页面路由，不管 /api/**）
+        registry.addInterceptor(loginInterceptor)
+                .addPathPatterns("/**")
                 .excludePathPatterns(
-                        "/login",                     // 登录页
-                        "/register",                  // 注册接口（POST）
-                        "/css/**", "/js/**",           // 静态资源
-                        "/api/detection/upload"        // APP上传接口不拦截！
+                        "/login", "/register", "/logout",
+                        "/api/**",        // ← 所有 API 请求交给 AppTokenInterceptor
+                        "/images/**",
+                        "/css/**", "/js/**", "/favicon.ico"
                 );
+
+        // ② APP Token 拦截器（拦截所有检测接口，包括 upload）
+        registry.addInterceptor(appTokenInterceptor)
+                .addPathPatterns("/api/detection/**")
+                .excludePathPatterns("/api/auth/**");
     }
 }
