@@ -14,9 +14,10 @@
 | 数据库 | MySQL 8.0（库：collectdata_db，表：detections / users） |
 | ORM | Spring Data JPA + Hibernate |
 | 密码安全 | spring-security-crypto（BCrypt，仅引入加密模块） |
-| 登录态 | HttpSession（8小时免登录） |
+| Web 登录态 | HttpSession（8小时免登录） |
+| APP 登录态 | JWT（jjwt 0.11.5，30天有效期） |
 | 前端模板 | Thymeleaf |
-| 地图组件 | Leaflet.js + OpenStreetMap |
+| 地图组件 | Leaflet.js + OpenStreetMap + Leaflet.heat |
 | 图表渲染 | 原生 Canvas API（无第三方图表库） |
 
 ---
@@ -27,28 +28,32 @@
 pavement_detection_server/
 ├── src/main/java/com/example/pavementdetection/server/
 │   ├── entity/
-│   │   ├── Detection.java           # 检测记录实体
-│   │   └── User.java                # 用户实体
+│   │   ├── Detection.java
+│   │   └── User.java
 │   ├── repository/
-│   │   ├── DetectionRepository.java # JPA + 统计查询
-│   │   └── UserRepository.java      # 用户查询
+│   │   ├── DetectionRepository.java
+│   │   └── UserRepository.java
 │   ├── service/
-│   │   ├── DetectionService.java    # 检测业务 + 置信度过滤 + 严重程度评级 + 动态阈值刷新
-│   │   └── UserService.java         # 注册 / 登录（BCrypt）
+│   │   ├── DetectionService.java    # 检测业务 + 置信度过滤 + 严重程度评级 + 动态阈值刷新 + 热力图数据
+│   │   └── UserService.java
 │   ├── controller/
-│   │   ├── DetectionController.java # 检测 REST API（含图片对比验证接口）
+│   │   ├── DetectionController.java # 检测 REST API（含热力图接口）
+│   │   ├── AppAuthController.java   # APP 注册/登录/改密/注销（JWT）
 │   │   ├── ThresholdController.java # 阈值动态管理 API
-│   │   ├── AuthController.java      # 登录 / 注册 / 登出
+│   │   ├── AuthController.java      # Web 登录/注册/登出（Session）
 │   │   └── WebController.java       # 页面路由 + 图片访问
 │   ├── interceptor/
-│   │   └── LoginInterceptor.java    # 登录拦截（未登录跳 /login）
+│   │   ├── LoginInterceptor.java    # Web Session 拦截（需 @Component）
+│   │   └── AppTokenInterceptor.java # APP JWT 拦截
 │   ├── config/
-│   │   └── WebConfig.java           # 注册拦截器 + 排除上传接口
+│   │   └── WebConfig.java           # 双拦截器注册
+│   ├── util/
+│   │   └── JwtUtil.java             # JWT 生成/校验
 │   └── ServerApplication.java
 ├── src/main/resources/
 │   ├── templates/
-│   │   ├── index.html               # 管理平台主页
-│   │   └── login.html               # 登录 / 注册页（粒子背景动效）
+│   │   ├── index.html               # 管理平台主页（含热力图）
+│   │   └── login.html               # 登录/注册页
 │   └── application.properties
 ```
 
@@ -88,6 +93,10 @@ confidence.threshold.patched_alligator_crack=0.50
 confidence.threshold.manhole=0.45
 confidence.threshold.street_waste=0.35
 confidence.threshold.default=0.50
+
+# JWT 配置
+jwt.secret=pavement-detection-secret-key-2026
+jwt.expiration=2592000000
 ```
 
 ### 数据库初始化
@@ -109,27 +118,37 @@ ALTER TABLE detections ADD COLUMN after_image_name   VARCHAR(255) DEFAULT NULL;
 
 ## REST API 接口
 
-### 检测记录
+### 检测记录（需 APP Token）
 
 | 方法 | 路径 | 说明 |
 |------|------|------|
-| POST | `/api/detection/upload` | APP 上传检测记录（含图片） |
+| POST | `/api/detection/upload` | APP 上传检测记录（含图片，需 Bearer Token） |
 | GET | `/api/detection/list?page=0&size=20` | 分页查询（按严重程度降序） |
 | GET | `/api/detection/stats` | 统计（类型分布 / 30天趋势 / 总数 / 严重程度分布） |
+| GET | `/api/detection/heatmap` | 热力图数据（返回全量坐标 + 权重） |
 | DELETE | `/api/detection/{id}` | 删除单条记录 |
-| PATCH | `/api/detection/{id}/status` | 更新处理状态（pending/processing/ignored，切回时自动清除处理后图片） |
+| PATCH | `/api/detection/{id}/status` | 更新处理状态（pending/processing/ignored） |
 | POST | `/api/detection/{id}/resolve-with-image` | 上传处理后图片并标记已解决 |
-| GET | `/api/detection/export?defectType=&channel=` | 导出 CSV（支持筛选） |
-| GET | `/images/{filename}` | 访问检测图片（含处理后图片） |
+| GET | `/api/detection/export?defectType=&channel=` | 导出 CSV |
+| GET | `/images/{filename}` | 访问图片文件 |
 
-### 阈值管理
+### APP 用户认证
+
+| 方法 | 路径 | 需要 Token | 说明 |
+|------|------|-----------|------|
+| POST | `/api/auth/register` | 否 | 注册，返回 token |
+| POST | `/api/auth/login` | 否 | 登录，返回 token |
+| POST | `/api/auth/changePassword` | 是 | 修改密码（验证旧密码） |
+| DELETE | `/api/auth/account` | 是 | 注销账号（只删 users 表，保留检测数据） |
+
+### 阈值管理（Web）
 
 | 方法 | 路径 | 说明 |
 |------|------|------|
 | GET | `/api/threshold/list` | 获取当前各类型阈值 |
 | POST | `/api/threshold/update` | 运行时更新阈值（立即生效，无需重启） |
 
-### 认证
+### Web 认证（Session）
 
 | 方法 | 路径 | 说明 |
 |------|------|------|
@@ -162,15 +181,12 @@ upload 响应示例：
 }
 ```
 
-resolve-with-image 响应示例：
+heatmap 响应示例：
 ```json
-{
-  "success": true,
-  "handleStatus": "resolved",
-  "handleBy": "admin",
-  "handleTime": "2026-05-09T10:23:38",
-  "afterImageName": "after_xxxx-xxxx.jpg"
-}
+[
+  { "lat": 39.123, "lng": 116.456, "weight": 8.5 },
+  { "lat": 39.124, "lng": 116.457, "weight": 3.2 }
+]
 ```
 
 ---
@@ -185,7 +201,7 @@ resolve-with-image 响应示例：
 | latitude / longitude | DOUBLE | GPS 坐标 |
 | defect_type | VARCHAR | 病害类型 |
 | confidence | FLOAT | 置信度 0～1 |
-| bboxx1/y1/x2/y2 | FLOAT | 检测框坐标（JPA驼峰转换，注意列名无下划线） |
+| bboxx1/y1/x2/y2 | FLOAT | 检测框坐标（JPA驼峰转换，列名无下划线） |
 | channel | VARCHAR | A / B |
 | device_id | VARCHAR | 设备标识 |
 | image_name | VARCHAR | 检测帧图片文件名 |
@@ -285,6 +301,45 @@ APP 上传
 
 ---
 
+## JWT 鉴权机制（APP 端）
+
+```
+APP 注册/登录
+  └→ 服务端返回 JWT Token（有效期30天）
+       └→ APP 存入 SharedPreferences
+
+后续所有 API 请求
+  └→ 请求头加 Authorization: Bearer <token>
+       └→ AppTokenInterceptor 校验
+            ├→ 有效：解析 username 存入 request.attribute("appUser")
+            └→ 无效/缺失：返回 401
+
+拦截器作用域（WebConfig）：
+  LoginInterceptor    → 拦 /** 排除 /api/**（只管 Web 页面）
+  AppTokenInterceptor → 拦 /api/detection/**
+                          + /api/auth/changePassword
+                          + /api/auth/account
+                        排除 /api/auth/register、/api/auth/login
+```
+
+---
+
+## 热力图机制
+
+```
+前端切换到「热力图」模式
+  └→ 懒加载 GET /api/detection/heatmap（只请求一次，分页切换时重建）
+       └→ 返回 [{lat, lng, weight}]（weight = severityScore，无则为1.0）
+            └→ Leaflet.heat 渲染（radius:25，蓝→黄→橙→红渐变）
+
+切换回「标记图」
+  └→ 移除 heatLayer，恢复普通 markers
+
+Tab 位置：地图右上角 right:10px，z-index:1001（高于 Leaflet 缩放按钮）
+```
+
+---
+
 ## Web 管理平台功能
 
 访问 `http://localhost:8080`（未登录自动跳转登录页）。
@@ -301,8 +356,9 @@ APP 上传
 - **近30天检测趋势**：原生 Canvas 折线图
 
 ### 地图可视化
-- Leaflet + OpenStreetMap，标记按病害类型颜色区分
-- 点击标记定位卡片，切换页面自动同步地图视角
+- Leaflet + OpenStreetMap，右上角切换「标记图 / 热力图」
+- 标记按病害类型颜色区分，点击标记定位卡片
+- 热力图按 severityScore 加权，懒加载
 
 ### 记录列表
 - 每页20条分页，按**严重程度降序**排列
@@ -314,9 +370,7 @@ APP 上传
 ### 详情弹窗
 - **处理前后图片左右对比**（处理后区域支持点击上传）
 - GPS 坐标、置信度、通道、设备ID、上传时间
-- 处理状态四按钮切换：
-    - 待处理 / 处理中 / 已忽略：直接切换，从已解决切回时自动清除处理后图片
-    - **已解决：必须上传处理后图片才能标记**，形成验收闭环
+- 处理状态四按钮切换（已解决必须上传处理后图片）
 - 记录处理人 + 处理时间
 
 ### 阈值设置
@@ -330,8 +384,15 @@ APP 上传
 ## Android APP 端接入
 
 ```kotlin
-// DetectionUploader.kt
-private const val SERVER_URL = "http://192.168.x.x:8080/api/detection/upload"
+// 服务端地址
+private const val BASE_URL = "http://192.168.x.x:8080"
+
+// 上传接口（需 Bearer Token）
+private const val UPLOAD_URL = "$BASE_URL/api/detection/upload"
+
+// 认证接口
+private const val REGISTER_URL = "$BASE_URL/api/auth/register"
+private const val LOGIN_URL    = "$BASE_URL/api/auth/login"
 ```
 
 ```xml
@@ -345,7 +406,10 @@ private const val SERVER_URL = "http://192.168.x.x:8080/api/detection/upload"
 implementation("com.squareup.okhttp3:okhttp:4.12.0")
 ```
 
-> `/api/detection/upload` 已在拦截器白名单中排除，APP 上传无需登录态。
+所有检测接口请求头需携带：
+```
+Authorization: Bearer eyJhbGci...
+```
 
 ---
 
@@ -357,17 +421,19 @@ implementation("com.squareup.okhttp3:okhttp:4.12.0")
 | `CLEARTEXT communication not permitted` | Android 9+ 禁 HTTP | Manifest 加 `usesCleartextTraffic="true"` |
 | 手机无法访问服务器 | Boot 默认监听 localhost | `server.address=0.0.0.0` |
 | 统计图表空白 | Edge 拦截 Chart.js CDN | 改用原生 Canvas 自绘 |
-| `response already committed` | 内联大体积 JS 超缓冲区 | 改静态文件或原生实现 |
-| IP 变动上传失败 | 代理工具改变路由 | 关代理或设静态 IP |
-| 改 HTML 不生效 | Thymeleaf 模板缓存 | `spring.thymeleaf.cache=false` + 重启 |
 | `confidence_status` 列不存在 | `ddl-auto=update` 不对已有表加列 | 手动执行 ALTER TABLE |
 | 阈值改了不生效 | `@Value` 仅初始化时注入 | `refreshThresholds()` 手动重读 Environment |
-| APP 上传被拦截返回 302 | 拦截器未排除上传接口 | WebConfig 排除 `/api/detection/upload` |
 | bbox 列名不含下划线 | JPA 驼峰转换规则（bboxX1→bboxx1） | SQL 直接用 `bboxx1` 而非 `bbox_x1` |
 | 处理后图片切换记录残留 | file input 无法用 `value=''` 清空 | `type=text` 再改回 `type=file` 强制清空 |
 | 「已解决」按钮卡住上传中 | `btn.disabled/textContent` 未在两处重置 | `fillAndShow` 和成功回调均重置按钮状态 |
 | `src.endsWith('/images/')` 判断失效 | 浏览器将相对路径补全为完整 URL | 改用 `dataset.loaded='true/false/preview'` 标记 |
-| 切换记录后状态高亮错误 | 卡片 `data-*` 缺少 handle 相关属性 | 模板加 `data-handle-status/by/time`，selectCard 完整传递 |
+| 热力图接口 405 Method Not Allowed | `@GetMapping("/api/detection/heatmap")` 路径重复（类上已有前缀） | 改为 `@GetMapping("/heatmap")` |
+| 热力图 Tab 被地图控件遮挡 | z-index 不足且位置与缩放按钮重叠 | `z-index:1001`，位置改为 `right:10px` |
+| APP 上传返回 401 | `LoginInterceptor` 先于 `AppTokenInterceptor` 执行且未排除 `/api/**` | `LoginInterceptor` 排除 `/api/**`，只管页面路由 |
+| `LoginInterceptor` 注入失败启动报错 | 缺少 `@Component` 注解 | 类上加 `@Component` |
+| 未注册用户能直接登录 | login 方法逻辑写反（判断用户存在才报错） | 修正为用户不存在或密码不匹配返回 401 |
+| `findByUsername` 永远不为 null | 返回类型是 `Optional`，直接 `!= null` 永远 true | 改用 `.orElse(null)` 或 `.isPresent()` |
+| 注销接口返回「用户不存在」 | Token 里 username 正确但 login 逻辑问题导致账号实际未入库 | 修正 login/register 逻辑后重新注册 |
 
 ---
 
@@ -379,11 +445,13 @@ implementation("com.squareup.okhttp3:okhttp:4.12.0")
 | Web 管理平台（地图/图表/列表/弹窗） | ✅ |
 | 置信度按类型分阈值过滤 | ✅ |
 | Web 界面动态调整阈值（运行时生效） | ✅ |
-| 登录注册系统（BCrypt + Session） | ✅ |
+| Web 登录注册系统（BCrypt + Session） | ✅ |
 | 任务处理状态管理（检测-管理闭环） | ✅ |
-| **严重程度自动评级**（多维度评分+分级+排序） | ✅ |
-| **处理前后图片对比验证**（上传验收闭环） | ✅ |
-| **严重程度统计面板**（条形图） | ✅ |
-| 热力图 | ⬜ 待完成 |
+| 严重程度自动评级（多维度评分+分级+排序） | ✅ |
+| 处理前后图片对比验证（上传验收闭环） | ✅ |
+| 严重程度统计面板（条形图） | ✅ |
+| 热力图（Leaflet.heat + 标记图切换） | ✅ |
+| APP JWT 登录注册（注册/登录/改密/注销） | ✅ |
+| upload 接口 Token 鉴权 | ✅ |
 | 区域聚合去重 | ⬜ 待完成 |
 | 云服务器部署 | ⬜ 待完成 |

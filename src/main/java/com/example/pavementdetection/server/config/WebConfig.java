@@ -29,9 +29,9 @@ public class WebConfig implements WebMvcConfigurer {
                         "/css/**", "/js/**", "/favicon.ico"
                 );
 
-        // ② APP Token 拦截器（拦截所有检测接口，包括 upload）
+        // ② APP Token 拦截器
         registry.addInterceptor(appTokenInterceptor)
-                .addPathPatterns("/api/detection/**")
-                .excludePathPatterns("/api/auth/**");
+                .addPathPatterns("/api/detection/**", "/api/auth/changePassword", "/api/auth/account")
+                .excludePathPatterns("/api/auth/register", "/api/auth/login");
     }
 }
