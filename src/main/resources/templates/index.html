@@ -4,518 +4,1039 @@
     <meta charset="UTF-8">
     <title>路面病害检测管理平台</title>
     <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"/>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;600&family=Noto+Sans+SC:wght@300;400;500;700&display=swap" rel="stylesheet">
     <style>
-        /* ===================================================
-           基础 Reset
-        =================================================== */
-        * { margin: 0; padding: 0; box-sizing: border-box; }
+        /* =====================================================
+           CSS 变量 & Reset
+        ===================================================== */
+        :root {
+            --bg0:        #080c14;
+            --bg1:        #0d1421;
+            --bg2:        #111827;
+            --bg3:        #162033;
+            --bg4:        #1d2a42;
+            --bg5:        #243350;
+            --border:     rgba(99,130,180,0.15);
+            --border2:    rgba(99,130,180,0.28);
+            --text1:      #e8edf7;
+            --text2:      #8a9bc2;
+            --text3:      #556480;
+            --accent:     #3b82f6;
+            --accent2:    #60a5fa;
+            --accent-glow:rgba(59,130,246,0.18);
+            --teal:       #14b8a6;
+            --amber:      #f59e0b;
+            --red:        #ef4444;
+            --orange:     #f97316;
+            --green:      #22c55e;
+            --purple:     #a855f7;
+            --nav-w:      68px;
+            --header-h:   54px;
+            --radius:     10px;
+            --radius-sm:  6px;
+            --mono:       'JetBrains Mono', monospace;
+            --sans:       'Noto Sans SC', 'Microsoft YaHei', sans-serif;
+        }
+        *, *::before, *::after { margin:0; padding:0; box-sizing:border-box; }
+        html, body { height:100%; overflow:hidden; }
         body {
-            font-family: 'Microsoft YaHei', sans-serif;
-            background: #f0f2f5;
+            font-family: var(--sans);
+            background: var(--bg0);
+            color: var(--text1);
             display: flex;
-            flex-direction: column;
+        }
+        ::-webkit-scrollbar { width:5px; height:5px; }
+        ::-webkit-scrollbar-track { background: var(--bg2); }
+        ::-webkit-scrollbar-thumb { background: var(--bg5); border-radius:3px; }
+        ::-webkit-scrollbar-thumb:hover { background: var(--accent); }
+
+        /* =====================================================
+           左侧导航栏
+        ===================================================== */
+        .nav {
+            width: var(--nav-w);
             height: 100vh;
-            overflow: hidden;
-        }
-
-        /* ===================================================
-           顶部标题栏
-        =================================================== */
-        .header {
-            background: linear-gradient(135deg, #1a237e, #283593);
-            color: white;
-            padding: 12px 24px;
-            display: flex;
-            align-items: center;
-            gap: 12px;
-            box-shadow: 0 2px 8px rgba(0,0,0,0.3);
-            flex-shrink: 0;
-            height: 52px;
-        }
-        .header h1 { font-size: 20px; font-weight: 600; }
-        .header .badge { background: #ff6f00; border-radius: 12px; padding: 2px 10px; font-size: 13px; }
-        .header-spacer { flex: 1; }
-
-        /* 顶部按钮通用 */
-        .header-btn {
-            border: none;
-            border-radius: 6px;
-            padding: 5px 14px;
-            font-size: 13px;
-            cursor: pointer;
-            display: flex;
-            align-items: center;
-            gap: 5px;
-            transition: background 0.15s;
-            white-space: nowrap;
-            color: white;
-            text-decoration: none;
-        }
-        .btn-export    { background: #00897b; } .btn-export:hover    { background: #00695c; }
-        .btn-threshold { background: #37474f; } .btn-threshold:hover { background: #263238; }
-        .btn-logout    { background: #37474f; } .btn-logout:hover    { background: #263238; }
-
-        /* ===================================================
-           阈值设置弹窗
-        =================================================== */
-        .threshold-panel {
-            display: none;
-            position: fixed;
-            top: 50%; left: 50%;
-            transform: translate(-50%, -50%);
-            background: white;
-            border-radius: 8px;
-            padding: 22px 26px;
-            width: 480px;
-            box-shadow: 0 8px 32px rgba(0,0,0,0.25);
-            z-index: 9999;
-        }
-        .threshold-panel.show { display: block; }
-        .threshold-panel h3 { color: #1a237e; font-size: 15px; margin-bottom: 6px; }
-        .threshold-hint { font-size: 11px; color: #999; margin-bottom: 14px; }
-        .threshold-table { width: 100%; border-collapse: collapse; font-size: 13px; }
-        .threshold-table th { text-align: left; color: #666; font-weight: 500; padding: 5px 8px; border-bottom: 2px solid #e8eaf6; }
-        .threshold-table td { padding: 7px 8px; border-bottom: 1px solid #f0f0f0; }
-        .threshold-table td:last-child { text-align: right; }
-        .threshold-table input[type=range] { width: 140px; accent-color: #3f51b5; vertical-align: middle; cursor: pointer; }
-        .threshold-val { display: inline-block; width: 38px; text-align: center; font-weight: 600; color: #1a237e; font-size: 13px; }
-        .threshold-footer { display: flex; justify-content: flex-end; gap: 10px; margin-top: 16px; }
-        .btn-th-cancel { background: #f0f0f0; color: #555; border: none; border-radius: 5px; padding: 6px 18px; cursor: pointer; font-size: 13px; }
-        .btn-th-cancel:hover { background: #e0e0e0; }
-        .btn-th-save { background: #3f51b5; color: white; border: none; border-radius: 5px; padding: 6px 18px; cursor: pointer; font-size: 13px; }
-        .btn-th-save:hover { background: #283593; }
-        .th-save-tip { font-size: 11px; color: #43a047; align-self: center; display: none; }
-
-        /* ===================================================
-           统计面板
-        =================================================== */
-        .stats-panel {
-            display: flex;
-            gap: 10px;
-            padding: 8px 14px;
-            background: #1a2340;
-            border-bottom: 1px solid #253060;
-            flex-shrink: 0;
-            height: 170px;
-        }
-        .stat-box {
-            background: #111d36;
-            border: 1px solid #253060;
-            border-radius: 8px;
-            padding: 8px 12px;
+            background: var(--bg1);
+            border-right: 1px solid var(--border);
             display: flex;
             flex-direction: column;
-        }
-        /* 总数区块 */
-        .stat-total { width: 100px; flex-shrink: 0; align-items: center; justify-content: center; gap: 4px; }
-        .stat-total .lbl { color: #7a8fbb; font-size: 12px; }
-        .stat-total .num { color: #4fc3f7; font-size: 40px; font-weight: bold; line-height: 1.1; }
-        /* 饼图区块 */
-        .stat-pie { width: 250px; flex-shrink: 0; }
-        /* 折线图区块 */
-        .stat-line { flex: 1; }
-        /* 通用 */
-        .stat-title { color: #7a8fbb; font-size: 11px; font-weight: 500; margin-bottom: 4px; flex-shrink: 0; }
-        .canvas-wrap { flex: 1; position: relative; min-height: 0; }
-        .canvas-wrap canvas { position: absolute; inset: 0; width: 100% !important; height: 100% !important; }
-
-        /* 严重程度横向条形图（统计面板） */
-        .sev-bar-wrap { flex: 1; display: flex; flex-direction: column; gap: 5px; justify-content: center; }
-        .sev-bar-row  { display: flex; align-items: center; gap: 6px; font-size: 11px; }
-        .sev-bar-label{ width: 28px; color: #9aaac8; text-align: right; flex-shrink: 0; }
-        .sev-bar-bg   { flex: 1; background: #1e2d50; border-radius: 3px; height: 10px; overflow: hidden; }
-        .sev-bar-fill { height: 100%; border-radius: 3px; transition: width 0.4s; }
-        .sev-bar-count{ width: 24px; color: #7a8fbb; text-align: right; flex-shrink: 0; }
-
-        /* ===================================================
-           主体布局
-        =================================================== */
-        .main { display: flex; flex: 1; overflow: hidden; }
-
-        /* ===================================================
-           地图区域
-        =================================================== */
-        .map-wrap { flex: 1; display: flex; flex-direction: column; position: relative; }
-        #map { flex: 1; }
-
-        /* 地图切换 Tab（标记图 / 热力图） */
-        .map-tab-bar {
-            position: absolute;
-            top: 10px;
-            right: 10px;
-            z-index: 1001;
-            display: flex;
-            gap: 6px;
-        }
-        .map-tab {
-            padding: 5px 14px;
-            border: none;
-            border-radius: 20px;
-            cursor: pointer;
-            font-size: 12px;
-            font-family: 'Microsoft YaHei', sans-serif;
-            background: rgba(255,255,255,0.92);
-            color: #555;
-            box-shadow: 0 2px 6px rgba(0,0,0,0.2);
-            transition: background 0.2s, color 0.2s;
-            backdrop-filter: blur(4px);
-        }
-        .map-tab.active { background: #1976d2; color: #fff; }
-        .map-tab:hover:not(.active) { background: #e3f2fd; color: #1565c0; }
-
-        /* ===================================================
-           右侧面板
-        =================================================== */
-        .panel {
-            width: 360px;
-            background: white;
-            display: flex;
-            flex-direction: column;
-            box-shadow: -2px 0 8px rgba(0,0,0,0.12);
+            align-items: center;
+            padding: 16px 0 12px;
             flex-shrink: 0;
-        }
-        .panel-header {
-            padding: 11px 14px;
-            background: #e8eaf6;
-            font-weight: 600;
-            font-size: 14px;
-            color: #1a237e;
-            border-bottom: 1px solid #c5cae9;
-            flex-shrink: 0;
-        }
-        .filter-bar {
-            padding: 7px 10px;
-            background: #fff;
-            border-bottom: 1px solid #e8e8e8;
-            display: flex;
-            gap: 6px;
-            flex-shrink: 0;
-        }
-        .filter-bar select {
-            flex: 1;
-            min-width: 0;
-            padding: 5px 20px 5px 6px;
-            border: 1px solid #d0d0d0;
-            border-radius: 4px;
-            font-size: 11px;
-            background: #fafafa;
-            color: #333;
-            outline: none;
-            cursor: pointer;
-            -webkit-appearance: none;
-            appearance: none;
-            background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='10' height='6'%3E%3Cpath d='M0 0l5 6 5-6z' fill='%23999'/%3E%3C/svg%3E");
-            background-repeat: no-repeat;
-            background-position: right 6px center;
-        }
-        .filter-bar select:focus { border-color: #5c6bc0; }
-
-        /* ===================================================
-           记录列表
-        =================================================== */
-        .list { flex: 1; overflow-y: auto; }
-        .card {
-            padding: 9px 11px;
-            border-bottom: 1px solid #f0f0f0;
-            cursor: pointer;
-            transition: background 0.12s;
-            display: flex;
-            gap: 9px;
-            align-items: flex-start;
+            z-index: 100;
             position: relative;
         }
-        .card:hover { background: #eef0fb; }
-        .card:hover .btn-del { opacity: 1; }
-        .card.selected { background: #e3f2fd; border-left: 3px solid #1565c0; padding-left: 8px; }
-
-        .card-img { width: 58px; height: 58px; object-fit: cover; border-radius: 4px; background: #eee; flex-shrink: 0; }
-        .card-img-placeholder {
-            width: 58px; height: 58px;
-            background: #e8e8e8;
-            border-radius: 4px;
+        .nav-logo {
+            width: 40px; height: 40px;
+            background: linear-gradient(135deg, var(--accent), var(--teal));
+            border-radius: 10px;
             display: flex; align-items: center; justify-content: center;
-            color: #bbb; font-size: 10px;
-            flex-shrink: 0; text-align: center;
+            font-size: 20px;
+            margin-bottom: 28px;
+            box-shadow: 0 0 18px var(--accent-glow);
         }
-        .card-info { flex: 1; min-width: 0; }
-        .card-title {
-            font-weight: 600; font-size: 12.5px; color: #222;
-            display: flex; align-items: center; gap: 4px;
-            flex-wrap: wrap; line-height: 1.4;
-        }
-        .tag { font-size: 10px; padding: 1px 5px; border-radius: 8px; font-weight: normal; white-space: nowrap; flex-shrink: 0; }
-        .tag-A { background: #fff3e0; color: #e65100; }
-        .tag-B { background: #e8f5e9; color: #2e7d32; }
-        .card-conf { font-size: 11px; color: #555; margin-top: 3px; }
-        .card-meta  { font-size: 10.5px; color: #999; margin-top: 2px; }
-
-        /* 删除按钮 */
-        .btn-del {
-            position: absolute; top: 7px; right: 8px;
-            background: none; border: none; color: #ccc; font-size: 15px;
-            cursor: pointer; opacity: 0;
-            transition: opacity 0.15s, color 0.15s;
-            line-height: 1; padding: 2px 4px; border-radius: 3px;
-        }
-        .btn-del:hover { color: #e53935; background: #ffeaea; }
-
-        /* ===================================================
-           分页
-        =================================================== */
-        .pagination {
-            display: flex; justify-content: center; align-items: center;
-            gap: 8px; padding: 7px 10px;
-            border-top: 1px solid #eee;
-            flex-shrink: 0; background: #fafafa;
-        }
-        .pagination button {
-            padding: 3px 12px;
-            background: #e8eaf6; color: #1a237e;
-            border: 1px solid #c5cae9; border-radius: 4px;
-            cursor: pointer; font-size: 12px; transition: background 0.12s;
-        }
-        .pagination button:hover:not(:disabled) { background: #c5cae9; }
-        .pagination button:disabled { opacity: 0.4; cursor: default; }
-        .page-info { color: #888; font-size: 11px; white-space: nowrap; }
-        .list-loading, .no-data { text-align: center; color: #bbb; padding: 36px 20px; font-size: 13px; }
-
-        /* ===================================================
-           详情弹窗
-        =================================================== */
-        .overlay { display: none; position: fixed; inset: 0; background: rgba(0,0,0,0.4); z-index: 9998; }
-        .overlay.show { display: block; }
-        .detail-panel {
-            display: none;
-            position: fixed; top: 50%; left: 50%;
-            transform: translate(-50%, -50%);
-            background: white; border-radius: 8px;
-            padding: 20px 22px; width: 440px;
-            box-shadow: 0 8px 32px rgba(0,0,0,0.25);
-            z-index: 9999;
-        }
-        .detail-panel.show { display: block; }
-        .detail-panel h3 { margin-bottom: 12px; color: #1a237e; font-size: 16px; }
-        .detail-row {
-            display: flex; justify-content: space-between;
-            padding: 6px 0; border-bottom: 1px solid #f0f0f0; font-size: 13px;
-        }
-        .detail-row:last-child { border-bottom: none; }
-        .detail-label { color: #999; }
-        .close-btn { position: absolute; top: 12px; right: 14px; background: none; border: none; font-size: 20px; cursor: pointer; color: #888; }
-        .close-btn:hover { color: #333; }
-
-        /* 处理前后图片对比 */
-        .img-compare-wrap { display: flex; gap: 8px; margin-bottom: 12px; }
-        .img-compare-item { flex: 1; display: flex; flex-direction: column; gap: 4px; }
-        .img-compare-label { font-size: 11px; color: #999; text-align: center; }
-        .img-compare-item img { width: 100%; height: 140px; object-fit: cover; border-radius: 4px; background: #f5f5f5; }
-        .img-compare-item .img-placeholder {
-            width: 100%; height: 140px;
-            background: #f0f0f0; border-radius: 4px;
-            display: flex; align-items: center; justify-content: center;
-            color: #bbb; font-size: 12px;
-            border: 2px dashed #ddd;
+        .nav-items { display:flex; flex-direction:column; gap:4px; flex:1; width:100%; padding:0 8px; }
+        .nav-item {
+            display: flex; flex-direction: column; align-items: center;
+            gap: 3px; padding: 10px 6px;
+            border-radius: var(--radius-sm);
             cursor: pointer;
-            flex-direction: column; gap: 4px;
-            transition: background 0.15s;
+            transition: background 0.15s, color 0.15s;
+            color: var(--text3);
+            position: relative;
+            user-select: none;
         }
-        .img-compare-item .img-placeholder:hover { background: #e8f5e9; border-color: #81c784; color: #388e3c; }
-        .img-upload-tip { font-size: 11px; color: #43a047; text-align: center; display: none; }
-        .btn-resolve {
-            width: 100%; margin-top: 8px; padding: 7px;
-            background: #43a047; color: white;
-            border: none; border-radius: 6px; font-size: 13px;
-            cursor: pointer; display: none; transition: background 0.15s;
+        .nav-item:hover { background: var(--bg3); color: var(--text2); }
+        .nav-item.active {
+            background: var(--accent-glow);
+            color: var(--accent2);
         }
-        .btn-resolve:hover { background: #2e7d32; }
-        .btn-resolve:disabled { background: #aaa; cursor: default; }
-
-        /* 处理状态标签 */
-        .status-badge {
-            display: inline-block; font-size: 10px; padding: 1px 6px;
-            border-radius: 8px; font-weight: 500; white-space: nowrap; flex-shrink: 0;
+        .nav-item.active::before {
+            content:'';
+            position:absolute; left:0; top:20%; height:60%;
+            width:3px; background:var(--accent);
+            border-radius:0 2px 2px 0;
         }
-        .status-pending    { background: #fff8e1; color: #f57f17; border: 1px solid #ffe082; }
-        .status-processing { background: #e3f2fd; color: #1565c0; border: 1px solid #90caf9; }
-        .status-resolved   { background: #e8f5e9; color: #2e7d32; border: 1px solid #a5d6a7; }
-        .status-ignored    { background: #f5f5f5; color: #9e9e9e; border: 1px solid #e0e0e0; }
+        .nav-icon { font-size: 20px; line-height:1; }
+        .nav-label { font-size: 10px; letter-spacing:0.5px; line-height:1; }
+        .nav-bottom { width:100%; padding:0 8px 4px; }
+        .nav-divider { border:none; border-top:1px solid var(--border); margin:8px 0; }
+        .nav-user {
+            display:flex; flex-direction:column; align-items:center; gap:2px;
+            font-size:10px; color:var(--text3); padding:6px;
+            text-align:center; line-height:1.4;
+        }
+        .nav-user span:first-child { font-size:18px; }
+        .nav-logout {
+            width:100%; padding:8px 6px;
+            background:none; border:none;
+            color:var(--text3); font-size:10px;
+            cursor:pointer; border-radius:var(--radius-sm);
+            display:flex; flex-direction:column; align-items:center; gap:3px;
+            transition: background 0.15s, color 0.15s;
+            font-family: var(--sans);
+        }
+        .nav-logout:hover { background:rgba(239,68,68,0.12); color:#f87171; }
 
-        /* 严重程度标签 */
-        .sev-critical { background: #ffebee; color: #b71c1c; border: 1px solid #ef9a9a; }
-        .sev-high     { background: #fff3e0; color: #e65100; border: 1px solid #ffcc80; }
-        .sev-medium   { background: #fffde7; color: #f57f17; border: 1px solid #fff176; }
-        .sev-low      { background: #f1f8e9; color: #33691e; border: 1px solid #c5e1a5; }
+        /* =====================================================
+           右侧主体
+        ===================================================== */
+        .app-body {
+            flex:1; display:flex; flex-direction:column; min-width:0; overflow:hidden;
+        }
 
-        /* 详情弹窗状态选择器 */
-        .status-selector { display: flex; gap: 6px; flex-wrap: wrap; margin-top: 4px; }
+        /* =====================================================
+           顶部 Header
+        ===================================================== */
+        .header {
+            height: var(--header-h);
+            background: var(--bg1);
+            border-bottom: 1px solid var(--border);
+            display: flex; align-items: center; gap:14px;
+            padding: 0 20px;
+            flex-shrink:0;
+        }
+        .header-title { font-size:16px; font-weight:700; letter-spacing:0.5px; }
+        .header-subtitle { font-size:12px; color:var(--text3); }
+        .header-badge {
+            background: rgba(245,158,11,0.15);
+            color: var(--amber); border:1px solid rgba(245,158,11,0.3);
+            border-radius:20px; padding:2px 10px; font-size:12px;
+            font-family: var(--mono);
+        }
+        .header-spacer { flex:1; }
+        .header-actions { display:flex; gap:8px; align-items:center; }
+        .hbtn {
+            display:flex; align-items:center; gap:5px;
+            padding:6px 13px; border-radius:var(--radius-sm);
+            border:1px solid var(--border2); background:var(--bg3);
+            color:var(--text2); font-size:12px; cursor:pointer;
+            transition:all 0.15s; font-family:var(--sans); white-space:nowrap;
+            text-decoration:none;
+        }
+        .hbtn:hover { background:var(--bg4); color:var(--text1); border-color:var(--border2); }
+        .hbtn.primary {
+            background:rgba(59,130,246,0.15); border-color:rgba(59,130,246,0.35);
+            color:var(--accent2);
+        }
+        .hbtn.primary:hover { background:rgba(59,130,246,0.25); }
+        .hbtn.danger { background:rgba(239,68,68,0.1); border-color:rgba(239,68,68,0.3); color:#f87171; }
+        .hbtn.danger:hover { background:rgba(239,68,68,0.2); }
+
+        /* =====================================================
+           页面容器（单页路由）
+        ===================================================== */
+        .page { display:none; flex:1; overflow:hidden; flex-direction:column; }
+        .page.active { display:flex; }
+
+        /* =====================================================
+           通用组件：卡片、标签、徽章
+        ===================================================== */
+        .card-box {
+            background: var(--bg2);
+            border: 1px solid var(--border);
+            border-radius: var(--radius);
+            padding: 16px 18px;
+        }
+        .box-title {
+            font-size:11px; color:var(--text3); letter-spacing:1px;
+            text-transform:uppercase; margin-bottom:12px; font-weight:500;
+        }
+
+        .tag {
+            display:inline-flex; align-items:center; gap:3px;
+            font-size:10px; padding:2px 7px; border-radius:20px;
+            font-weight:500; white-space:nowrap;
+        }
+        .tag-A { background:rgba(245,158,11,0.15); color:#fbbf24; border:1px solid rgba(245,158,11,0.25); }
+        .tag-B { background:rgba(20,184,166,0.15); color:#2dd4bf; border:1px solid rgba(20,184,166,0.25); }
+        .sev-critical { background:rgba(239,68,68,0.15);  color:#f87171; border:1px solid rgba(239,68,68,0.3); }
+        .sev-high     { background:rgba(249,115,22,0.15);  color:#fb923c; border:1px solid rgba(249,115,22,0.3); }
+        .sev-medium   { background:rgba(234,179,8,0.15);   color:#facc15; border:1px solid rgba(234,179,8,0.3); }
+        .sev-low      { background:rgba(34,197,94,0.15);   color:#4ade80; border:1px solid rgba(34,197,94,0.3); }
+        .status-pending    { background:rgba(245,158,11,0.12); color:#fbbf24; border:1px solid rgba(245,158,11,0.25); }
+        .status-processing { background:rgba(59,130,246,0.12); color:#60a5fa; border:1px solid rgba(59,130,246,0.25); }
+        .status-resolved   { background:rgba(34,197,94,0.12);  color:#4ade80; border:1px solid rgba(34,197,94,0.25); }
+        .status-ignored    { background:rgba(100,116,139,0.12); color:#94a3b8; border:1px solid rgba(100,116,139,0.25); }
+
+        /* =====================================================
+           页面1：概览 Dashboard
+        ===================================================== */
+        .dash-scroll { flex:1; overflow-y:auto; padding:18px 20px; display:flex; flex-direction:column; gap:16px; }
+        .dash-metrics { display:grid; grid-template-columns:repeat(4,1fr); gap:12px; }
+        .metric-card {
+            background:var(--bg2); border:1px solid var(--border);
+            border-radius:var(--radius); padding:18px 16px;
+            position:relative; overflow:hidden;
+            transition: border-color 0.2s, transform 0.15s;
+        }
+        .metric-card:hover { border-color:var(--border2); transform:translateY(-1px); }
+        .metric-card::after {
+            content:''; position:absolute; top:0; left:0; right:0; height:2px;
+        }
+        .metric-card.c-blue::after  { background:var(--accent); }
+        .metric-card.c-teal::after  { background:var(--teal); }
+        .metric-card.c-orange::after { background:var(--orange); }
+        .metric-card.c-red::after   { background:var(--red); }
+        .metric-label { font-size:11px; color:var(--text3); letter-spacing:0.8px; text-transform:uppercase; margin-bottom:10px; }
+        .metric-value {
+            font-size:36px; font-weight:700; font-family:var(--mono); line-height:1;
+            margin-bottom:4px;
+        }
+        .metric-card.c-blue .metric-value  { color:var(--accent2); }
+        .metric-card.c-teal .metric-value  { color:#2dd4bf; }
+        .metric-card.c-orange .metric-value { color:#fb923c; }
+        .metric-card.c-red .metric-value   { color:#f87171; }
+        .metric-sub { font-size:12px; color:var(--text3); }
+        .metric-icon {
+            position:absolute; right:14px; top:14px;
+            font-size:28px; opacity:0.12;
+        }
+
+        .dash-mid { display:grid; grid-template-columns:1fr 1fr; gap:12px; }
+        .dash-wide { display:grid; grid-template-columns:1fr; gap:12px; }
+
+        .sev-bar-wrap { display:flex; flex-direction:column; gap:10px; }
+        .sev-bar-row  { display:flex; align-items:center; gap:10px; }
+        .sev-bar-label{ width:30px; font-size:12px; color:var(--text3); flex-shrink:0; text-align:right; }
+        .sev-bar-bg   { flex:1; background:var(--bg4); border-radius:4px; height:8px; overflow:hidden; }
+        .sev-bar-fill { height:100%; border-radius:4px; transition:width 0.6s cubic-bezier(.4,0,.2,1); }
+        .sev-bar-count{ width:28px; font-size:12px; color:var(--text2); text-align:right; font-family:var(--mono); }
+
+        .canvas-wrap { position:relative; width:100%; }
+        .canvas-wrap canvas { width:100% !important; display:block; }
+
+        /* 最新告警列表 */
+        .alert-list { display:flex; flex-direction:column; gap:8px; }
+        .alert-item {
+            display:flex; align-items:center; gap:12px;
+            padding:10px 12px; background:var(--bg3);
+            border-radius:var(--radius-sm); border:1px solid var(--border);
+            cursor:pointer; transition:background 0.12s;
+        }
+        .alert-item:hover { background:var(--bg4); }
+        .alert-dot {
+            width:8px; height:8px; border-radius:50%; flex-shrink:0;
+        }
+        .alert-dot.critical { background:var(--red); box-shadow:0 0 6px var(--red); }
+        .alert-dot.high     { background:var(--orange); box-shadow:0 0 6px var(--orange); }
+        .alert-dot.medium   { background:var(--amber); }
+        .alert-dot.low      { background:var(--green); }
+        .alert-type { font-size:13px; font-weight:500; flex:1; }
+        .alert-conf { font-size:11px; color:var(--text3); font-family:var(--mono); }
+        .alert-time { font-size:11px; color:var(--text3); }
+
+        /* =====================================================
+           页面2：地图
+        ===================================================== */
+        .map-page { flex:1; display:flex; position:relative; overflow:hidden; }
+        .map-topbar {
+            position:absolute; top:12px; left:12px; right:12px;
+            z-index:1001; display:flex; align-items:center; gap:10px;
+            pointer-events:none;
+        }
+        .map-topbar > * { pointer-events:auto; }
+        .map-filter-row {
+            display:flex; gap:8px; flex:1;
+        }
+        .map-select {
+            padding:7px 28px 7px 10px; border-radius:var(--radius-sm);
+            background:rgba(13,20,33,0.92); border:1px solid var(--border2);
+            color:var(--text1); font-size:12px; font-family:var(--sans);
+            outline:none; cursor:pointer; backdrop-filter:blur(8px);
+            -webkit-appearance:none; appearance:none;
+            background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='10' height='6'%3E%3Cpath d='M0 0l5 6 5-6z' fill='%238a9bc2'/%3E%3C/svg%3E");
+            background-repeat:no-repeat; background-position:right 8px center;
+        }
+        .map-tab-bar {
+            display:flex; gap:4px;
+            background:rgba(13,20,33,0.92); border:1px solid var(--border2);
+            border-radius:var(--radius-sm); padding:3px; backdrop-filter:blur(8px);
+        }
+        .map-tab {
+            padding:5px 14px; border-radius:5px; border:none;
+            font-size:12px; cursor:pointer; font-family:var(--sans);
+            background:none; color:var(--text2);
+            transition:background 0.15s, color 0.15s;
+        }
+        .map-tab.active { background:var(--accent); color:#fff; }
+        .map-tab:hover:not(.active) { background:var(--bg4); color:var(--text1); }
+        #map { width:100%; height:100%; }
+
+        /* 地图右侧详情抽屉 */
+        .map-drawer {
+            position:absolute; right:0; top:0; bottom:0;
+            width:320px; background:rgba(11,17,28,0.97);
+            border-left:1px solid var(--border);
+            backdrop-filter:blur(12px);
+            transform:translateX(100%);
+            transition:transform 0.25s cubic-bezier(.4,0,.2,1);
+            z-index:1000; overflow-y:auto; padding:14px;
+            display:flex; flex-direction:column; gap:10px;
+        }
+        .map-drawer.open { transform:translateX(0); }
+        .drawer-close {
+            position:absolute; top:10px; right:10px;
+            background:var(--bg4); border:none; color:var(--text2);
+            width:26px; height:26px; border-radius:50%; cursor:pointer;
+            font-size:13px; display:flex; align-items:center; justify-content:center;
+            transition:background 0.15s;
+        }
+        .drawer-close:hover { background:var(--bg5); color:var(--text1); }
+        .drawer-title { font-size:14px; font-weight:600; padding-right:30px; }
+        .drawer-img {
+            width:100%; height:150px; object-fit:cover;
+            border-radius:var(--radius-sm); background:var(--bg3);
+        }
+        .drawer-field { display:flex; justify-content:space-between; padding:7px 0; border-bottom:1px solid var(--border); font-size:12px; }
+        .drawer-field:last-of-type { border-bottom:none; }
+        .drawer-field-label { color:var(--text3); }
+        .drawer-field-val { color:var(--text2); font-family:var(--mono); font-size:11px; text-align:right; max-width:55%; word-break:break-all; }
+
+        /* =====================================================
+           页面3：记录列表
+        ===================================================== */
+        .records-page { flex:1; display:flex; flex-direction:column; overflow:hidden; }
+        .records-toolbar {
+            padding:12px 18px; border-bottom:1px solid var(--border);
+            display:flex; gap:10px; align-items:center; background:var(--bg1); flex-shrink:0;
+        }
+        .rec-select {
+            padding:7px 28px 7px 10px; border-radius:var(--radius-sm);
+            background:var(--bg3); border:1px solid var(--border);
+            color:var(--text1); font-size:12px; font-family:var(--sans);
+            outline:none; cursor:pointer;
+            -webkit-appearance:none; appearance:none;
+            background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='10' height='6'%3E%3Cpath d='M0 0l5 6 5-6z' fill='%238a9bc2'/%3E%3C/svg%3E");
+            background-repeat:no-repeat; background-position:right 8px center;
+            transition:border-color 0.15s;
+        }
+        .rec-select:focus { border-color:var(--accent); }
+        .toolbar-spacer { flex:1; }
+        .records-body { flex:1; overflow-y:auto; }
+        .rec-table { width:100%; border-collapse:collapse; font-size:13px; }
+        .rec-table thead th {
+            position:sticky; top:0; background:var(--bg2);
+            padding:10px 14px; text-align:left;
+            font-size:11px; color:var(--text3); letter-spacing:0.8px; text-transform:uppercase;
+            border-bottom:1px solid var(--border); font-weight:500; z-index:1;
+        }
+        .rec-table tbody tr {
+            border-bottom:1px solid var(--border);
+            transition:background 0.1s;
+            cursor:pointer;
+        }
+        .rec-table tbody tr:hover { background:var(--bg3); }
+        .rec-table tbody tr.low-conf { opacity:0.45; }
+        .rec-table tbody td { padding:10px 14px; vertical-align:middle; }
+        .td-img {
+            width:52px; height:40px; object-fit:cover;
+            border-radius:4px; background:var(--bg4); display:block;
+        }
+        .td-no-img {
+            width:52px; height:40px; background:var(--bg4);
+            border-radius:4px; display:flex; align-items:center; justify-content:center;
+            font-size:9px; color:var(--text3);
+        }
+        .td-type { font-weight:500; color:var(--text1); }
+        .td-conf { font-family:var(--mono); color:var(--text2); }
+        .td-time { font-family:var(--mono); font-size:11px; color:var(--text3); }
+        .td-actions { display:flex; gap:6px; opacity:0; transition:opacity 0.1s; }
+        .rec-table tbody tr:hover .td-actions { opacity:1; }
+        .act-btn {
+            padding:3px 9px; border-radius:4px; border:1px solid var(--border);
+            background:var(--bg4); color:var(--text2); font-size:11px; cursor:pointer;
+            transition:all 0.12s; font-family:var(--sans);
+        }
+        .act-btn:hover { background:var(--bg5); color:var(--text1); }
+        .act-btn.del:hover { background:rgba(239,68,68,0.15); color:#f87171; border-color:rgba(239,68,68,0.3); }
+        .records-footer {
+            padding:10px 18px; border-top:1px solid var(--border); background:var(--bg1);
+            display:flex; align-items:center; gap:10px; flex-shrink:0;
+        }
+        .page-btn {
+            padding:5px 14px; background:var(--bg3); border:1px solid var(--border);
+            color:var(--text2); border-radius:var(--radius-sm); cursor:pointer;
+            font-size:12px; font-family:var(--sans); transition:all 0.12s;
+        }
+        .page-btn:hover:not(:disabled) { background:var(--bg4); color:var(--text1); }
+        .page-btn:disabled { opacity:0.35; cursor:default; }
+        .page-info-txt { font-size:12px; color:var(--text3); font-family:var(--mono); }
+        .list-loading, .no-data {
+            text-align:center; color:var(--text3); padding:60px 20px; font-size:13px;
+        }
+        .no-data::before { content:'— '; }
+        .no-data::after  { content:' —'; }
+
+        /* =====================================================
+           页面4：统计分析
+        ===================================================== */
+        .analytics-scroll { flex:1; overflow-y:auto; padding:18px 20px; display:flex; flex-direction:column; gap:16px; }
+        .analytics-grid { display:grid; grid-template-columns:1fr 1fr; gap:14px; }
+
+        /* =====================================================
+           页面5：系统设置
+        ===================================================== */
+        .settings-scroll { flex:1; overflow-y:auto; padding:18px 20px; display:flex; flex-direction:column; gap:16px; max-width:700px; }
+        .settings-section-title {
+            font-size:11px; color:var(--text3); letter-spacing:1px;
+            text-transform:uppercase; margin-bottom:14px; font-weight:500;
+            display:flex; align-items:center; gap:8px;
+        }
+        .settings-section-title::after {
+            content:''; flex:1; height:1px; background:var(--border);
+        }
+        .th-row {
+            display:flex; align-items:center; gap:12px;
+            padding:10px 0; border-bottom:1px solid var(--border);
+        }
+        .th-row:last-child { border-bottom:none; }
+        .th-name { width:130px; font-size:13px; color:var(--text1); flex-shrink:0; }
+        .th-key  { font-size:10px; color:var(--text3); font-family:var(--mono); }
+        .th-slider { flex:1; accent-color:var(--accent); cursor:pointer; }
+        .th-val  {
+            width:44px; text-align:center; font-family:var(--mono);
+            font-size:13px; font-weight:600; color:var(--accent2);
+        }
+        .settings-save-row { display:flex; gap:10px; align-items:center; margin-top:4px; }
+        .save-tip { font-size:12px; color:var(--green); display:none; }
+
+        /* =====================================================
+           详情弹窗（全局，在记录列表/地图页通用）
+        ===================================================== */
+        .overlay {
+            display:none; position:fixed; inset:0;
+            background:rgba(0,0,0,0.65); z-index:9000;
+            backdrop-filter:blur(3px);
+        }
+        .overlay.show { display:block; }
+        .detail-modal {
+            display:none; position:fixed;
+            top:50%; left:50%; transform:translate(-50%,-50%);
+            background:var(--bg2); border:1px solid var(--border2);
+            border-radius:12px; padding:22px 24px; width:470px;
+            box-shadow:0 24px 64px rgba(0,0,0,0.6);
+            z-index:9001; max-height:90vh; overflow-y:auto;
+        }
+        .detail-modal.show { display:block; }
+        .modal-header {
+            display:flex; align-items:center; justify-content:space-between;
+            margin-bottom:14px;
+        }
+        .modal-title { font-size:15px; font-weight:600; }
+        .modal-close {
+            background:none; border:none; color:var(--text3);
+            font-size:18px; cursor:pointer; transition:color 0.12s; line-height:1;
+        }
+        .modal-close:hover { color:var(--text1); }
+
+        /* 图片对比 */
+        .img-compare { display:grid; grid-template-columns:1fr 1fr; gap:10px; margin-bottom:14px; }
+        .img-col { display:flex; flex-direction:column; gap:5px; }
+        .img-col-label { font-size:10px; color:var(--text3); text-align:center; letter-spacing:0.5px; }
+        .img-col img, .img-col .img-ph {
+            width:100%; height:130px; border-radius:var(--radius-sm);
+        }
+        .img-col img { object-fit:cover; background:var(--bg4); }
+        .img-ph {
+            background:var(--bg4); border:2px dashed var(--border2);
+            display:flex; flex-direction:column; align-items:center; justify-content:center;
+            color:var(--text3); font-size:11px; gap:4px; cursor:pointer;
+            transition:background 0.15s, border-color 0.15s;
+        }
+        .img-ph:hover { background:var(--bg5); border-color:var(--teal); color:var(--teal); }
+        .img-upload-tip { font-size:11px; color:var(--green); display:none; text-align:center; }
+
+        /* 字段行 */
+        .d-row {
+            display:flex; justify-content:space-between; align-items:center;
+            padding:7px 0; border-bottom:1px solid var(--border); font-size:13px;
+        }
+        .d-row:last-of-type { border-bottom:none; }
+        .d-label { color:var(--text3); }
+        .d-val   { color:var(--text2); font-family:var(--mono); font-size:12px; }
+
+        /* 状态选择器 */
+        .status-selector { display:flex; gap:7px; flex-wrap:wrap; padding:8px 0; }
         .status-opt {
-            padding: 4px 12px; border-radius: 14px; border: 1px solid #ddd;
-            font-size: 12px; cursor: pointer; transition: all 0.15s;
-            background: #f5f5f5; color: #666;
+            padding:5px 13px; border-radius:20px;
+            border:1px solid var(--border); background:var(--bg3);
+            color:var(--text3); font-size:12px; cursor:pointer;
+            transition:all 0.15s; font-family:var(--sans);
         }
-        .status-opt:hover { filter: brightness(0.95); }
-        .status-opt.active-pending    { background: #fff8e1; color: #f57f17; border-color: #ffe082; font-weight: 600; }
-        .status-opt.active-processing { background: #e3f2fd; color: #1565c0; border-color: #90caf9; font-weight: 600; }
-        .status-opt.active-resolved   { background: #e8f5e9; color: #2e7d32; border-color: #a5d6a7; font-weight: 600; }
-        .status-opt.active-ignored    { background: #f5f5f5; color: #9e9e9e; border-color: #bdbdbd; font-weight: 600; }
-        .status-save-tip { font-size: 11px; color: #43a047; margin-top: 4px; display: none; }
+        .status-opt:hover { border-color:var(--border2); color:var(--text2); }
+        .status-opt.active-pending    { background:rgba(245,158,11,0.15); color:#fbbf24; border-color:rgba(245,158,11,0.4); }
+        .status-opt.active-processing { background:rgba(59,130,246,0.15);  color:#60a5fa; border-color:rgba(59,130,246,0.4); }
+        .status-opt.active-resolved   { background:rgba(34,197,94,0.15);   color:#4ade80; border-color:rgba(34,197,94,0.4); }
+        .status-opt.active-ignored    { background:rgba(100,116,139,0.15); color:#94a3b8; border-color:rgba(100,116,139,0.3); }
+        .status-save-tip { font-size:11px; color:var(--green); margin-top:4px; display:none; }
+        .d-handle-info   { font-size:11px; color:var(--text3); margin-top:2px; }
+        .btn-resolve {
+            width:100%; margin-top:10px; padding:9px;
+            background:rgba(34,197,94,0.15); color:#4ade80;
+            border:1px solid rgba(34,197,94,0.3); border-radius:var(--radius-sm);
+            font-size:13px; cursor:pointer; display:none;
+            transition:background 0.15s; font-family:var(--sans);
+        }
+        .btn-resolve:hover { background:rgba(34,197,94,0.25); }
+        .btn-resolve:disabled { opacity:0.5; cursor:default; }
 
-        /* ===================================================
+        /* =====================================================
            确认删除弹窗
-        =================================================== */
+        ===================================================== */
         .confirm-mask {
-            display: none; position: fixed; inset: 0;
-            background: rgba(0,0,0,0.45); z-index: 10000;
-            align-items: center; justify-content: center;
+            display:none; position:fixed; inset:0;
+            background:rgba(0,0,0,0.65); z-index:10000;
+            align-items:center; justify-content:center;
+            backdrop-filter:blur(3px);
         }
-        .confirm-mask.show { display: flex; }
-        .confirm-box { background: white; border-radius: 8px; padding: 24px 28px; width: 320px; box-shadow: 0 8px 32px rgba(0,0,0,0.2); }
-        .confirm-box h4 { font-size: 16px; color: #333; margin-bottom: 10px; }
-        .confirm-box p { font-size: 13px; color: #666; margin-bottom: 20px; line-height: 1.6; }
-        .confirm-btns { display: flex; gap: 10px; justify-content: flex-end; }
-        .confirm-btns button { padding: 6px 18px; border-radius: 5px; border: none; cursor: pointer; font-size: 13px; }
-        .btn-cancel-del  { background: #f0f0f0; color: #555; }
-        .btn-cancel-del:hover  { background: #e0e0e0; }
-        .btn-confirm-del { background: #e53935; color: white; }
-        .btn-confirm-del:hover { background: #c62828; }
+        .confirm-mask.show { display:flex; }
+        .confirm-box {
+            background:var(--bg2); border:1px solid var(--border2);
+            border-radius:12px; padding:24px 26px; width:340px;
+            box-shadow:0 24px 64px rgba(0,0,0,0.6);
+        }
+        .confirm-box h4 { font-size:16px; margin-bottom:8px; }
+        .confirm-box p  { font-size:13px; color:var(--text2); margin-bottom:20px; line-height:1.7; }
+        .confirm-btns { display:flex; gap:10px; justify-content:flex-end; }
+        .conf-cancel {
+            padding:7px 18px; background:var(--bg3); border:1px solid var(--border);
+            color:var(--text2); border-radius:var(--radius-sm); cursor:pointer;
+            font-size:13px; font-family:var(--sans); transition:background 0.12s;
+        }
+        .conf-cancel:hover { background:var(--bg4); }
+        .conf-del {
+            padding:7px 18px; background:rgba(239,68,68,0.15);
+            border:1px solid rgba(239,68,68,0.35); color:#f87171;
+            border-radius:var(--radius-sm); cursor:pointer;
+            font-size:13px; font-family:var(--sans); transition:background 0.12s;
+        }
+        .conf-del:hover { background:rgba(239,68,68,0.3); }
+
+        /* =====================================================
+           响应式：Leaflet 覆盖
+        ===================================================== */
+        .leaflet-container { background:#0a1020; }
+        .leaflet-tile { filter:brightness(0.85) saturate(0.8); }
+        .leaflet-popup-content-wrapper {
+            background:var(--bg2); border:1px solid var(--border2);
+            border-radius:var(--radius-sm); color:var(--text1); font-family:var(--sans);
+            box-shadow:0 8px 24px rgba(0,0,0,0.5);
+        }
+        .leaflet-popup-tip { background:var(--bg2); }
+        .leaflet-popup-content { font-size:12px; line-height:1.7; }
+        .leaflet-control-zoom a {
+            background:var(--bg2) !important; color:var(--text2) !important;
+            border-color:var(--border) !important;
+        }
+        .leaflet-control-zoom a:hover { background:var(--bg3) !important; color:var(--text1) !important; }
+        .leaflet-control-attribution {
+            background:rgba(8,12,20,0.75) !important; color:var(--text3) !important; font-size:9px !important;
+        }
+        .leaflet-control-attribution a { color:var(--text3) !important; }
     </style>
 </head>
 <body>
 
+<!-- =====================================================
+     左侧导航栏
+===================================================== -->
+<nav class="nav">
+    <div class="nav-logo">🛣️</div>
+    <div class="nav-items">
+        <div class="nav-item active" data-page="dash" onclick="switchPage('dash', this)">
+            <span class="nav-icon">📊</span>
+            <span class="nav-label">概览</span>
+        </div>
+        <div class="nav-item" data-page="map" onclick="switchPage('map', this)">
+            <span class="nav-icon">🗺️</span>
+            <span class="nav-label">地图</span>
+        </div>
+        <div class="nav-item" data-page="records" onclick="switchPage('records', this)">
+            <span class="nav-icon">📋</span>
+            <span class="nav-label">记录</span>
+        </div>
+        <div class="nav-item" data-page="analytics" onclick="switchPage('analytics', this)">
+            <span class="nav-icon">📈</span>
+            <span class="nav-label">统计</span>
+        </div>
+        <div class="nav-item" data-page="settings" onclick="switchPage('settings', this)">
+            <span class="nav-icon">⚙️</span>
+            <span class="nav-label">设置</span>
+        </div>
+    </div>
+    <div class="nav-bottom">
+        <hr class="nav-divider">
+        <div class="nav-user">
+            <span>👤</span>
+            <span id="nav-username" style="color:var(--text2); font-size:11px;">加载中</span>
+        </div>
+        <a href="/logout" class="nav-logout">
+            <span style="font-size:18px;">⎋</span>
+            <span>退出</span>
+        </a>
+    </div>
+</nav>
+
+<!-- =====================================================
+     右侧主体
+===================================================== -->
+<div class="app-body">
+
+    <!-- 顶部 Header -->
+    <div class="header">
+        <div>
+            <div class="header-title" id="header-title">概览 Dashboard</div>
+        </div>
+        <span class="header-badge" id="header-badge">加载中…</span>
+        <div class="header-spacer"></div>
+    </div>
+
+    <!-- ===================================================
+         页面1：概览 Dashboard（运营态势）
+    =================================================== -->
+    <div class="page active" id="page-dash">
+        <div class="dash-scroll">
+
+            <!-- 第一行：4个数字指标卡 -->
+            <div class="dash-metrics">
+                <div class="metric-card c-blue">
+                    <div class="metric-icon">📦</div>
+                    <div class="metric-label">总记录数</div>
+                    <div class="metric-value" id="m-total">—</div>
+                    <div class="metric-sub">条检测记录</div>
+                </div>
+                <div class="metric-card c-red">
+                    <div class="metric-icon">🚨</div>
+                    <div class="metric-label">紧急问题</div>
+                    <div class="metric-value" id="m-critical">—</div>
+                    <div class="metric-sub">需立即处理</div>
+                </div>
+                <div class="metric-card c-orange">
+                    <div class="metric-icon">⏳</div>
+                    <div class="metric-label">待处理</div>
+                    <div class="metric-value" id="m-pending">—</div>
+                    <div class="metric-sub">条未处理记录</div>
+                </div>
+                <div class="metric-card c-teal">
+                    <div class="metric-icon">✅</div>
+                    <div class="metric-label">已解决</div>
+                    <div class="metric-value" id="m-resolved">—</div>
+                    <div class="metric-sub">条已完成</div>
+                </div>
+            </div>
+
+            <!-- 第二行：处理进度环 + 通道分布 + 严重程度快览 -->
+            <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:12px;">
+
+                <!-- 任务处理进度环形图 -->
+                <div class="card-box" style="display:flex;flex-direction:column;align-items:center;gap:12px;">
+                    <div class="box-title" style="align-self:flex-start;">任务处理进度</div>
+                    <div style="position:relative;width:110px;height:110px;flex-shrink:0;">
+                        <canvas id="progressRingCanvas" width="110" height="110"></canvas>
+                        <div style="position:absolute;inset:0;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:1px;">
+                            <span style="font-size:22px;font-weight:700;font-family:var(--mono);color:var(--accent2);" id="progressPct">—</span>
+                            <span style="font-size:10px;color:var(--text3);">解决率</span>
+                        </div>
+                    </div>
+                    <div style="display:grid;grid-template-columns:1fr 1fr;gap:6px 14px;width:100%;font-size:11px;">
+                        <div style="display:flex;align-items:center;gap:5px;">
+                            <span style="width:7px;height:7px;border-radius:50%;background:#4ade80;flex-shrink:0;"></span>
+                            <span style="color:var(--text3);">已解决</span>
+                            <span style="margin-left:auto;font-family:var(--mono);color:var(--text2);" id="cnt-resolved">—</span>
+                        </div>
+                        <div style="display:flex;align-items:center;gap:5px;">
+                            <span style="width:7px;height:7px;border-radius:50%;background:#fbbf24;flex-shrink:0;"></span>
+                            <span style="color:var(--text3);">待处理</span>
+                            <span style="margin-left:auto;font-family:var(--mono);color:var(--text2);" id="cnt-pending2">—</span>
+                        </div>
+                        <div style="display:flex;align-items:center;gap:5px;">
+                            <span style="width:7px;height:7px;border-radius:50%;background:#60a5fa;flex-shrink:0;"></span>
+                            <span style="color:var(--text3);">处理中</span>
+                            <span style="margin-left:auto;font-family:var(--mono);color:var(--text2);" id="cnt-processing">—</span>
+                        </div>
+                        <div style="display:flex;align-items:center;gap:5px;">
+                            <span style="width:7px;height:7px;border-radius:50%;background:#94a3b8;flex-shrink:0;"></span>
+                            <span style="color:var(--text3);">已忽略</span>
+                            <span style="margin-left:auto;font-family:var(--mono);color:var(--text2);" id="cnt-ignored">—</span>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- 通道来源分布 -->
+                <div class="card-box">
+                    <div class="box-title">通道来源分布</div>
+                    <div style="display:flex;flex-direction:column;gap:14px;padding-top:8px;">
+                        <div>
+                            <div style="display:flex;justify-content:space-between;font-size:12px;margin-bottom:5px;">
+                                <span style="color:#fbbf24;">通道 A — IMU 触发</span>
+                                <span style="font-family:var(--mono);color:var(--text2);" id="ch-a-cnt">—</span>
+                            </div>
+                            <div style="background:var(--bg4);border-radius:4px;height:8px;overflow:hidden;">
+                                <div id="ch-a-bar" style="height:100%;border-radius:4px;background:#f59e0b;transition:width 0.6s;width:0%;"></div>
+                            </div>
+                        </div>
+                        <div>
+                            <div style="display:flex;justify-content:space-between;font-size:12px;margin-bottom:5px;">
+                                <span style="color:#2dd4bf;">通道 B — 实时检测</span>
+                                <span style="font-family:var(--mono);color:var(--text2);" id="ch-b-cnt">—</span>
+                            </div>
+                            <div style="background:var(--bg4);border-radius:4px;height:8px;overflow:hidden;">
+                                <div id="ch-b-bar" style="height:100%;border-radius:4px;background:#14b8a6;transition:width 0.6s;width:0%;"></div>
+                            </div>
+                        </div>
+                        <div style="font-size:11px;color:var(--text3);padding-top:4px;border-top:1px solid var(--border);">
+                            A = 传感器自动触发上报 &nbsp;|&nbsp; B = APP 实时帧检测
+                        </div>
+                    </div>
+                </div>
+
+                <!-- 严重程度快览 -->
+                <div class="card-box">
+                    <div class="box-title">严重程度快览</div>
+                    <div class="sev-bar-wrap" id="dash-sev-bars" style="padding-top:4px;">
+                        <div style="color:var(--text3);font-size:12px;">加载中…</div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- 第三行：告警 feed + 趋势折线图 -->
+            <div style="display:grid;grid-template-columns:320px 1fr;gap:12px;">
+
+                <!-- 告警 feed -->
+                <div class="card-box" style="display:flex;flex-direction:column;">
+                    <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:12px;">
+                        <div class="box-title" style="margin-bottom:0;">紧急 / 高危告警</div>
+                        <button class="hbtn" style="padding:3px 10px;font-size:11px;" onclick="switchPage('records',document.querySelector('[data-page=records]'))">全部 →</button>
+                    </div>
+                    <div id="dash-alerts" style="display:flex;flex-direction:column;gap:6px;overflow-y:auto;max-height:220px;flex:1;">
+                        <div style="color:var(--text3);font-size:12px;">加载中…</div>
+                    </div>
+                </div>
+
+                <!-- 趋势折线图（Canvas，概览页保留原生绘制风格，与统计页 Chart.js 形成对比） -->
+                <div class="card-box">
+                    <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:10px;">
+                        <div class="box-title" style="margin-bottom:0;">近 30 天检测趋势</div>
+                        <span style="font-size:11px;color:var(--text3);" id="dash-trend-peak"></span>
+                    </div>
+                    <div class="canvas-wrap" style="height:160px;">
+                        <canvas id="dashLineCanvas" style="height:160px;"></canvas>
+                    </div>
+                </div>
+
+            </div>
+        </div>
+    </div>
+
+    <!-- ===================================================
+         页面2：地图
+    =================================================== -->
+    <div class="page" id="page-map">
+        <div class="map-page" id="map-page-inner">
+            <!-- 顶部筛选条 + 切换Tab -->
+            <div class="map-topbar">
+                <div class="map-filter-row">
+                    <select class="map-select" id="mapFilterType" onchange="applyMapFilter()">
+                        <option value="">全部类型</option>
+                        <option value="crack">裂缝</option>
+                        <option value="patched_crack">修补后裂缝</option>
+                        <option value="pothole">坑槽</option>
+                        <option value="patched_pothole">修补后坑槽</option>
+                        <option value="alligator_crack">网裂</option>
+                        <option value="patched_alligator_crack">修补后网裂</option>
+                        <option value="manhole">检查井</option>
+                        <option value="street_waste">路面垃圾</option>
+                    </select>
+                    <select class="map-select" id="mapFilterChannel" onchange="applyMapFilter()">
+                        <option value="">全部通道</option>
+                        <option value="A">通道A</option>
+                        <option value="B">通道B</option>
+                    </select>
+                </div>
+                <div class="map-tab-bar">
+                    <button class="map-tab active" id="btnMapNormal" onclick="switchMapMode('normal')">📍 标记图</button>
+                    <button class="map-tab" id="btnMapHeat" onclick="switchMapMode('heat')">🔥 热力图</button>
+                </div>
+            </div>
+            <div id="map"></div>
+            <!-- 右侧抽屉 -->
+            <div class="map-drawer" id="mapDrawer">
+                <button class="drawer-close" onclick="closeDrawer()">✕</button>
+                <div class="drawer-title" id="dr-title">—</div>
+                <div style="display:flex;gap:6px;flex-wrap:wrap;margin:6px 0;" id="dr-tags"></div>
+                <img class="drawer-img" id="dr-img" src="" alt="" style="display:none">
+                <div class="img-ph" id="dr-img-ph" style="height:90px;display:flex;">暂无图片</div>
+                <div class="drawer-field"><span class="drawer-field-label">置信度</span><span class="drawer-field-val" id="dr-conf">—</span></div>
+                <div class="drawer-field"><span class="drawer-field-label">触发通道</span><span class="drawer-field-val" id="dr-channel">—</span></div>
+                <div class="drawer-field"><span class="drawer-field-label">GPS坐标</span><span class="drawer-field-val" id="dr-gps">—</span></div>
+                <div class="drawer-field"><span class="drawer-field-label">设备ID</span><span class="drawer-field-val" id="dr-device">—</span></div>
+                <div class="drawer-field"><span class="drawer-field-label">上传时间</span><span class="drawer-field-val" id="dr-time">—</span></div>
+                <div class="drawer-field"><span class="drawer-field-label">处理状态</span><span id="dr-status">—</span></div>
+            </div>
+        </div>
+    </div>
+
+    <!-- ===================================================
+         页面3：记录列表
+    =================================================== -->
+    <div class="page" id="page-records">
+        <div class="records-page">
+            <!-- 第一行：筛选 + 排序 -->
+            <div class="records-toolbar">
+                <select class="rec-select" id="recFilterType" onchange="applyFilter()">
+                    <option value="">全部类型</option>
+                    <option value="crack">裂缝</option>
+                    <option value="patched_crack">修补后裂缝</option>
+                    <option value="pothole">坑槽</option>
+                    <option value="patched_pothole">修补后坑槽</option>
+                    <option value="alligator_crack">网裂</option>
+                    <option value="patched_alligator_crack">修补后网裂</option>
+                    <option value="manhole">检查井</option>
+                    <option value="street_waste">路面垃圾</option>
+                </select>
+                <select class="rec-select" id="recFilterChannel" onchange="applyFilter()">
+                    <option value="">全部通道</option>
+                    <option value="A">通道A（IMU触发）</option>
+                    <option value="B">通道B（实时）</option>
+                </select>
+                <select class="rec-select" id="recFilterStatus" onchange="applyFilter()">
+                    <option value="">全部状态</option>
+                    <option value="pending">待处理</option>
+                    <option value="processing">处理中</option>
+                    <option value="resolved">已解决</option>
+                    <option value="ignored">已忽略</option>
+                </select>
+                <div style="width:1px;height:20px;background:var(--border);flex-shrink:0;"></div>
+                <!-- 排序 -->
+                <select class="rec-select" id="recSortField" onchange="applyFilter()" style="border-color:rgba(59,130,246,0.3);color:var(--accent2);">
+                    <option value="severity">↓ 严重程度</option>
+                    <option value="time_desc">↓ 时间最新</option>
+                    <option value="time_asc">↑ 时间最早</option>
+                    <option value="conf_desc">↓ 置信度高</option>
+                    <option value="conf_asc">↑ 置信度低</option>
+                </select>
+                <div style="width:1px;height:20px;background:var(--border);flex-shrink:0;"></div>
+                <!-- 时间范围 -->
+                <input type="date" id="recDateFrom" onchange="applyFilter()"
+                       style="padding:6px 8px;background:var(--bg3);border:1px solid var(--border);color:var(--text2);
+                 border-radius:var(--radius-sm);font-size:12px;font-family:var(--mono);outline:none;
+                 color-scheme:dark;cursor:pointer;"
+                       title="起始日期">
+                <span style="font-size:11px;color:var(--text3);flex-shrink:0;">—</span>
+                <input type="date" id="recDateTo" onchange="applyFilter()"
+                       style="padding:6px 8px;background:var(--bg3);border:1px solid var(--border);color:var(--text2);
+                 border-radius:var(--radius-sm);font-size:12px;font-family:var(--mono);outline:none;
+                 color-scheme:dark;cursor:pointer;"
+                       title="截止日期">
+                <button class="hbtn" style="padding:5px 10px;font-size:11px;flex-shrink:0;" onclick="clearDateFilter()" title="清除日期筛选">✕</button>
+                <div class="toolbar-spacer"></div>
+            </div>
+            <div class="records-body">
+                <table class="rec-table">
+                    <thead>
+                    <tr>
+                        <th style="width:64px;">图片</th>
+                        <th>类型</th>
+                        <th>置信度</th>
+                        <th>通道</th>
+                        <th>严重程度</th>
+                        <th>状态</th>
+                        <th>上传时间</th>
+                        <th style="width:100px;">操作</th>
+                    </tr>
+                    </thead>
+                    <tbody id="recTableBody">
+                    <tr><td colspan="8" class="list-loading">加载中…</td></tr>
+                    </tbody>
+                </table>
+            </div>
+            <div class="records-footer">
+                <button class="page-btn" id="rec-prev" disabled onclick="changePage(-1)">← 上一页</button>
+                <span class="page-info-txt" id="rec-page-info">— / —</span>
+                <button class="page-btn" id="rec-next" disabled onclick="changePage(1)">下一页 →</button>
+                <div class="toolbar-spacer"></div>
+                <span class="page-info-txt" id="rec-total-info"></span>
+                <span class="page-info-txt" id="rec-filter-info" style="color:var(--accent2);"></span>
+                <button class="hbtn primary" style="padding:5px 14px;" onclick="exportCSV()">⬇ 导出 CSV</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- ===================================================
+         页面4：统计分析（Chart.js，与概览页 Canvas 形成对比）
+    =================================================== -->
+    <div class="page" id="page-analytics">
+        <div class="analytics-scroll">
+
+            <!-- 顶部指标：与概览不同，这里强调分布比例 -->
+            <div style="display:grid;grid-template-columns:repeat(4,1fr);gap:12px;">
+                <div class="card-box" style="text-align:center;">
+                    <div class="box-title" style="text-align:left;">总记录</div>
+                    <div style="font-size:32px;font-weight:700;font-family:var(--mono);color:var(--accent2);" id="anl-total">—</div>
+                </div>
+                <div class="card-box" style="text-align:center;">
+                    <div class="box-title" style="text-align:left;">紧急占比</div>
+                    <div style="font-size:32px;font-weight:700;font-family:var(--mono);color:#f87171;" id="anl-crit-pct">—</div>
+                </div>
+                <div class="card-box" style="text-align:center;">
+                    <div class="box-title" style="text-align:left;">高危占比</div>
+                    <div style="font-size:32px;font-weight:700;font-family:var(--mono);color:#fb923c;" id="anl-high-pct">—</div>
+                </div>
+                <div class="card-box" style="text-align:center;">
+                    <div class="box-title" style="text-align:left;">解决率</div>
+                    <div style="font-size:32px;font-weight:700;font-family:var(--mono);color:#4ade80;" id="anl-resolve-pct">—</div>
+                </div>
+            </div>
+
+            <!-- 甜甜圈 + 严重程度横向柱 -->
+            <div style="display:grid;grid-template-columns:260px 1fr;gap:14px;">
+                <div class="card-box">
+                    <div class="box-title">病害类型分布</div>
+                    <div id="anlPieLegend" style="display:flex;flex-wrap:wrap;gap:5px 10px;margin-bottom:10px;"></div>
+                    <div style="position:relative;height:180px;">
+                        <canvas id="anlPieCanvas" role="img" aria-label="病害类型分布甜甜圈图">病害类型分布</canvas>
+                    </div>
+                </div>
+                <div class="card-box">
+                    <div class="box-title">严重程度分布</div>
+                    <div style="position:relative;height:180px;">
+                        <canvas id="anlSevCanvas" role="img" aria-label="严重程度横向条形图">严重程度分布</canvas>
+                    </div>
+                </div>
+            </div>
+
+            <!-- 趋势折线图（Chart.js，全宽） -->
+            <div class="card-box">
+                <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:12px;">
+                    <div class="box-title" style="margin-bottom:0;">近 30 天检测趋势</div>
+                    <span style="display:flex;align-items:center;gap:8px;font-size:11px;color:var(--text3);">
+            <span style="display:inline-block;width:20px;height:2px;background:#3b82f6;border-radius:1px;vertical-align:middle;"></span>检测数量
+          </span>
+                </div>
+                <div style="position:relative;height:200px;">
+                    <canvas id="anlLineCanvas" role="img" aria-label="近30天检测数量趋势折线图">近30天检测趋势</canvas>
+                </div>
+            </div>
+
+        </div>
+    </div>
+
+    <!-- ===================================================
+         页面5：系统设置
+    =================================================== -->
+    <div class="page" id="page-settings">
+        <div class="settings-scroll">
+            <div class="card-box">
+                <div class="settings-section-title">置信度过滤阈值</div>
+                <p style="font-size:12px;color:var(--text3);margin-bottom:16px;line-height:1.7;">低于阈值的记录仍会入库，但标记为「低置信度」并在列表中置灰排末尾。调整后点击保存立即生效，无需重启服务。</p>
+                <div id="thresholdRows"></div>
+                <div class="settings-save-row" style="margin-top:16px;">
+                    <button class="hbtn primary" onclick="saveThresholds()">保存阈值设置</button>
+                    <span class="save-tip" id="thSaveTip">✓ 已保存，立即生效</span>
+                </div>
+            </div>
+            <div class="card-box">
+                <div class="settings-section-title">关于系统</div>
+                <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;font-size:12px;">
+                    <div class="d-row"><span class="d-label">系统名称</span><span class="d-val">路面病害检测平台</span></div>
+                    <div class="d-row"><span class="d-label">后端框架</span><span class="d-val">Spring Boot 3.5</span></div>
+                    <div class="d-row"><span class="d-label">数据库</span><span class="d-val">MySQL 8.0</span></div>
+                    <div class="d-row"><span class="d-label">检测模型</span><span class="d-val">YOLOv8 双通道</span></div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+</div><!-- /app-body -->
+
 <!-- ===================================================
-     顶部标题栏
+     全局详情弹窗
 =================================================== -->
-<div class="header">
-    <span>🛣️</span>
-    <h1>路面病害检测管理平台</h1>
-    <span class="badge" id="header-badge">加载中…</span>
-    <div class="header-spacer"></div>
-    <button class="header-btn btn-threshold" onclick="openThreshold()">⚙ 阈值设置</button>
-    <button class="header-btn btn-export"    onclick="exportCSV()">⬇ 导出 CSV</button>
-    <span style="color:#7a8fbb; font-size:13px;" id="login-user"></span>
-    <a href="/logout" class="header-btn btn-logout">⎋ 退出</a>
-</div>
+<div class="overlay" id="overlay" onclick="closeDetail()"></div>
+<div class="detail-modal" id="detailPanel">
+    <div class="modal-header">
+        <div class="modal-title" id="d-title">病害详情</div>
+        <button class="modal-close" onclick="closeDetail()">✕</button>
+    </div>
 
-<!-- ===================================================
-     统计面板
-=================================================== -->
-<div class="stats-panel">
-    <div class="stat-box stat-total">
-        <div class="lbl">总记录数</div>
-        <div class="num" id="total-count">-</div>
-        <div class="lbl">条</div>
-    </div>
-    <div class="stat-box stat-pie">
-        <div class="stat-title">病害类型分布</div>
-        <div class="canvas-wrap"><canvas id="pieCanvas"></canvas></div>
-    </div>
-    <div class="stat-box" style="width:160px; flex-shrink:0;">
-        <div class="stat-title">严重程度分布</div>
-        <div class="sev-bar-wrap" id="sevBars">
-            <div style="color:#7a8fbb;font-size:11px;">加载中…</div>
+    <!-- 图片对比 -->
+    <div class="img-compare">
+        <div class="img-col">
+            <div class="img-col-label">检测图片（处理前）</div>
+            <img id="d-img" src="" alt="" style="display:none;">
+            <div class="img-ph" id="d-img-ph" style="display:none;cursor:default;">暂无图片</div>
         </div>
-    </div>
-    <div class="stat-box stat-line">
-        <div class="stat-title">近30天检测趋势</div>
-        <div class="canvas-wrap"><canvas id="lineCanvas"></canvas></div>
-    </div>
-</div>
-
-<!-- ===================================================
-     主体：地图 + 右侧列表
-=================================================== -->
-<div class="main">
-
-    <!-- 地图区域（含切换 Tab） -->
-    <div class="map-wrap">
-        <div class="map-tab-bar">
-            <button class="map-tab active" id="btnMapNormal" onclick="switchMapMode('normal')">📍 标记图</button>
-            <button class="map-tab"        id="btnMapHeat"   onclick="switchMapMode('heat')"  >🔥 热力图</button>
-        </div>
-        <div id="map"></div>
-    </div>
-
-    <!-- 右侧面板 -->
-    <div class="panel">
-        <div class="panel-header">📋 病害记录列表</div>
-        <div class="filter-bar">
-            <select id="filterType">
-                <option value="">全部类型</option>
-                <option value="crack">裂缝</option>
-                <option value="patched_crack">修补后裂缝</option>
-                <option value="pothole">坑槽</option>
-                <option value="patched_pothole">修补后坑槽</option>
-                <option value="alligator_crack">网裂</option>
-                <option value="patched_alligator_crack">修补后网裂</option>
-                <option value="manhole">检查井</option>
-                <option value="street_waste">路面垃圾</option>
-            </select>
-            <select id="filterChannel">
-                <option value="">全部通道</option>
-                <option value="A">通道A（IMU触发）</option>
-                <option value="B">通道B（实时）</option>
-            </select>
-        </div>
-        <div class="list" id="recordList"><div class="list-loading">加载中…</div></div>
-        <div class="pagination">
-            <button id="btn-prev" disabled>上一页</button>
-            <span class="page-info" id="page-info">- / -</span>
-            <button id="btn-next" disabled>下一页</button>
-        </div>
-    </div>
-</div>
-
-<!-- ===================================================
-     详情弹窗
-=================================================== -->
-<div class="overlay" id="overlay"></div>
-<div class="detail-panel" id="detailPanel">
-    <button class="close-btn" id="closeBtn">✕</button>
-    <h3 id="d-title">病害详情</h3>
-
-    <!-- 处理前后图片对比 -->
-    <div class="img-compare-wrap">
-        <div class="img-compare-item">
-            <div class="img-compare-label">检测图片（处理前）</div>
-            <img id="d-img" src="" alt=""
-                 style="display:none; width:100%; height:140px; object-fit:cover; border-radius:4px;"/>
-            <div class="img-placeholder" id="d-img-placeholder" style="display:none;">暂无图片</div>
-        </div>
-        <div class="img-compare-item" id="afterImgCol">
-            <div class="img-compare-label">处理后图片</div>
-            <img id="d-after-img" src="" alt=""
-                 style="display:none; width:100%; height:140px; object-fit:cover; border-radius:4px;"/>
-            <div class="img-placeholder" id="afterImgPlaceholder" onclick="triggerAfterUpload()">
+        <div class="img-col">
+            <div class="img-col-label">处理后图片</div>
+            <img id="d-after-img" src="" alt="" style="display:none;">
+            <div class="img-ph" id="afterImgPlaceholder" onclick="triggerAfterUpload()">
                 <span style="font-size:20px;">📷</span>
                 <span>点击上传处理后照片</span>
             </div>
         </div>
     </div>
+    <input type="file" id="afterImageInput" accept="image/*" style="display:none;" onchange="previewAfterImage(this)">
+    <div class="img-upload-tip" id="imgUploadTip">✓ 图片已选择，点击「确认已解决」提交</div>
 
-    <!-- 隐藏的文件选择器 -->
-    <input type="file" id="afterImageInput" accept="image/*" style="display:none;"
-           onchange="previewAfterImage(this)"/>
-    <div class="img-upload-tip" id="imgUploadTip">✅ 图片已选择，点击「确认已解决」提交</div>
+    <div class="d-row"><span class="d-label">病害类型</span><span class="d-val" id="d-type">—</span></div>
+    <div class="d-row"><span class="d-label">置信度</span><span class="d-val" id="d-conf">—</span></div>
+    <div class="d-row"><span class="d-label">触发通道</span><span class="d-val" id="d-channel">—</span></div>
+    <div class="d-row"><span class="d-label">GPS 坐标</span><span class="d-val" id="d-gps">—</span></div>
+    <div class="d-row"><span class="d-label">设备 ID</span><span class="d-val" id="d-device">—</span></div>
+    <div class="d-row"><span class="d-label">上传时间</span><span class="d-val" id="d-time">—</span></div>
 
-    <!-- 详情字段 -->
-    <div class="detail-row"><span class="detail-label">病害类型</span><span id="d-type"></span></div>
-    <div class="detail-row"><span class="detail-label">置信度</span>  <span id="d-conf"></span></div>
-    <div class="detail-row"><span class="detail-label">触发通道</span><span id="d-channel"></span></div>
-    <div class="detail-row"><span class="detail-label">GPS坐标</span> <span id="d-gps"></span></div>
-    <div class="detail-row"><span class="detail-label">设备ID</span>  <span id="d-device"></span></div>
-    <div class="detail-row"><span class="detail-label">上传时间</span><span id="d-time"></span></div>
-
-    <!-- 处理状态 -->
-    <div class="detail-row" style="flex-direction:column; align-items:flex-start; gap:6px;">
-        <span class="detail-label">处理状态</span>
+    <div style="padding:8px 0;">
+        <div class="d-label" style="font-size:12px;margin-bottom:6px;">处理状态</div>
         <div class="status-selector">
             <button class="status-opt" data-val="pending"    onclick="setStatus('pending')"   >⏳ 待处理</button>
             <button class="status-opt" data-val="processing" onclick="setStatus('processing')" >🔧 处理中</button>
             <button class="status-opt" data-val="resolved"   onclick="onClickResolved()"      >✅ 已解决</button>
             <button class="status-opt" data-val="ignored"    onclick="setStatus('ignored')"   >🚫 已忽略</button>
         </div>
-        <div id="d-handle-info" style="font-size:11px; color:#999;"></div>
-        <div class="status-save-tip" id="statusSaveTip">✅ 状态已更新</div>
+        <div class="d-handle-info" id="d-handle-info"></div>
+        <div class="status-save-tip" id="statusSaveTip"></div>
         <button class="btn-resolve" id="btnResolve" onclick="submitResolve()">
             📷 确认已解决（提交处理后图片）
         </button>
@@ -528,485 +1049,130 @@
 <div class="confirm-mask" id="confirmMask">
     <div class="confirm-box">
         <h4>🗑 确认删除</h4>
-        <p id="confirmMsg">确定要删除这条记录吗？<br>此操作不可撤销。</p>
+        <p id="confirmMsg">确定要删除这条记录吗？此操作不可撤销。</p>
         <div class="confirm-btns">
-            <button class="btn-cancel-del"  id="btnCancelDel" >取消</button>
-            <button class="btn-confirm-del" id="btnConfirmDel">确认删除</button>
+            <button class="conf-cancel" onclick="closeConfirm()">取消</button>
+            <button class="conf-del"    onclick="doDelete()">确认删除</button>
         </div>
     </div>
 </div>
 
-<!-- ===================================================
-     阈值设置弹窗
-=================================================== -->
-<div class="threshold-panel" id="thresholdPanel">
-    <button class="close-btn" onclick="closeThreshold()">✕</button>
-    <h3>⚙ 置信度过滤阈值设置</h3>
-    <p class="threshold-hint">低于阈值的记录将入库并标记为「低置信度」。拖动滑块调整，点击保存后立即生效。</p>
-    <table class="threshold-table">
-        <thead><tr><th>病害类型</th><th>阈值</th></tr></thead>
-        <tbody id="thresholdRows"></tbody>
-    </table>
-    <div class="threshold-footer">
-        <span class="th-save-tip" id="thSaveTip">✅ 已保存，立即生效</span>
-        <button class="btn-th-cancel" onclick="closeThreshold()">取消</button>
-        <button class="btn-th-save"   onclick="saveThresholds()">保存</button>
-    </div>
-</div>
-
-<!-- ===================================================
-     脚本依赖（Leaflet → Leaflet.heat）
-=================================================== -->
+<!-- =====================================================
+     脚本依赖
+===================================================== -->
 <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/leaflet.heat@0.2.0/dist/leaflet-heat.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.js"></script>
 
 <script>
     /* =====================================================
        常量 & 配置
     ===================================================== */
-
-    /** 处理状态展示配置 */
     const STATUS_CONFIG = {
-        pending:    { label: '待处理', cls: 'status-pending'    },
-        processing: { label: '处理中', cls: 'status-processing' },
-        resolved:   { label: '已解决', cls: 'status-resolved'   },
-        ignored:    { label: '已忽略', cls: 'status-ignored'    },
+        pending:    { label:'待处理', cls:'status-pending'    },
+        processing: { label:'处理中', cls:'status-processing' },
+        resolved:   { label:'已解决', cls:'status-resolved'   },
+        ignored:    { label:'已忽略', cls:'status-ignored'    },
     };
-
-    /** 严重程度展示配置 */
-    const SEV_CONFIG = { critical: '紧急', high: '高危', medium: '中危', low: '低危' };
-
-    /** 病害类型展示配置（label 中文名 / color 地图颜色） */
+    const SEV_CONFIG = { critical:'紧急', high:'高危', medium:'中危', low:'低危' };
     const TYPE_CONFIG = {
-        crack:                   { label: '裂缝',       color: '#ff7043' },
-        patched_crack:           { label: '修补后裂缝', color: '#ffa726' },
-        pothole:                 { label: '坑槽',       color: '#f44336' },
-        patched_pothole:         { label: '修补后坑槽', color: '#ef5350' },
-        alligator_crack:         { label: '网裂',       color: '#ab47bc' },
-        patched_alligator_crack: { label: '修补后网裂', color: '#ce93d8' },
-        manhole:                 { label: '检查井',     color: '#26c6da' },
-        street_waste:            { label: '路面垃圾',   color: '#8d6e63' },
+        crack:                   { label:'裂缝',       color:'#f87171' },
+        patched_crack:           { label:'修补后裂缝', color:'#fb923c' },
+        pothole:                 { label:'坑槽',       color:'#ef4444' },
+        patched_pothole:         { label:'修补后坑槽', color:'#f97316' },
+        alligator_crack:         { label:'网裂',       color:'#a855f7' },
+        patched_alligator_crack: { label:'修补后网裂', color:'#c084fc' },
+        manhole:                 { label:'检查井',     color:'#22d3ee' },
+        street_waste:            { label:'路面垃圾',   color:'#a78bfa' },
     };
-
-    /** 阈值设置弹窗中的类型排列顺序及中文名 */
     const THRESHOLD_LABELS = {
-        crack:                   '裂缝',
-        patched_crack:           '修补后裂缝',
-        pothole:                 '坑槽',
-        patched_pothole:         '修补后坑槽',
-        alligator_crack:         '网裂',
-        patched_alligator_crack: '修补后网裂',
-        manhole:                 '检查井',
-        street_waste:            '路面垃圾',
+        crack:'裂缝', patched_crack:'修补后裂缝', pothole:'坑槽',
+        patched_pothole:'修补后坑槽', alligator_crack:'网裂',
+        patched_alligator_crack:'修补后网裂', manhole:'检查井', street_waste:'路面垃圾',
     };
-
-    /** 辅助：返回类型中文+英文标注，未知类型原样返回 */
-    const tLabel = t => TYPE_CONFIG[t] ? `${TYPE_CONFIG[t].label} (${t})` : (t || '-');
-    /** 辅助：返回类型颜色，未知类型默认蓝色 */
-    const tColor = t => TYPE_CONFIG[t]?.color ?? '#2196f3';
+    const tLabel = t => TYPE_CONFIG[t] ? `${TYPE_CONFIG[t].label} (${t})` : (t || '—');
+    const tColor = t => TYPE_CONFIG[t]?.color ?? '#3b82f6';
 
     /* =====================================================
-       地图初始化
+       页面路由
     ===================================================== */
-    const map = L.map('map').setView([39.9042, 116.4074], 12);
-    L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
-        attribution: '© OpenStreetMap'
-    }).addTo(map);
+    const PAGE_TITLES = {
+        dash:      '概览 Dashboard',
+        map:       '地图 Map',
+        records:   '记录列表 Records',
+        analytics: '统计分析 Analytics',
+        settings:  '系统设置 Settings',
+    };
+    let currentPageId = 'dash';
 
-    /**
-     * markers 对象：key = record.id，value = L.Marker 实例
-     * 用于：点击卡片弹出气泡、删除记录时移除标记、切换地图模式时统一显隐
-     */
+    function switchPage(pageId, navEl) {
+        if (currentPageId === pageId) return;
+        currentPageId = pageId;
+
+        document.querySelectorAll('.page').forEach(p => p.classList.remove('active'));
+        document.querySelectorAll('.nav-item').forEach(n => n.classList.remove('active'));
+        const pageEl = document.getElementById('page-' + pageId);
+        if (!pageEl) return;
+        pageEl.classList.add('active');
+        if (navEl) navEl.classList.add('active');
+
+        document.getElementById('header-title').textContent = PAGE_TITLES[pageId] || '';
+
+        // 地图页：首次进入初始化，已初始化则修复尺寸（Leaflet 在 display:none 里初始化会黑屏）
+        if (pageId === 'map') {
+            if (!mapInitialized) { initMap(); mapInitialized = true; }
+            else if (map) { setTimeout(() => map.invalidateSize(), 50); }
+        }
+
+        // 统计页每次进入都重绘（保证 canvas 尺寸正确）
+        if (pageId === 'analytics') drawAnalytics();
+
+        // 设置页首次进入加载阈值
+        if (pageId === 'settings' && !settingsLoaded) { loadThresholds(); settingsLoaded = true; }
+
+        history.pushState({}, '', '#' + pageId);
+    }
+
+    /* =====================================================
+       地图模块
+    ===================================================== */
+    let map, mapInitialized = false;
     const markers = {};
+    let currentMapMode = 'normal';
+    let heatLayer = null;
+    let allRecords = []; // 全量数据供地图使用
 
-    /** 创建彩色圆形图标 */
+    function initMap() {
+        map = L.map('map').setView([39.9042, 116.4074], 12);
+        L.tileLayer('https://webst0{s}.is.autonavi.com/appmaptile?style=6&x={x}&y={y}&z={z}', {
+            subdomains: '1234', maxZoom: 18, attribution: '© 高德地图'
+        }).addTo(map);
+        L.tileLayer('https://webst0{s}.is.autonavi.com/appmaptile?style=8&x={x}&y={y}&z={z}', {
+            subdomains: '1234', maxZoom: 18, opacity: 0.9
+        }).addTo(map);
+        if (allRecords.length > 0) syncMapMarkers(allRecords);
+    }
+
     function makeIcon(type) {
         const c = tColor(type);
         return L.divIcon({
-            className: '',
-            html: `<div style="width:13px;height:13px;border-radius:50%;background:${c};border:2px solid #fff;box-shadow:0 1px 4px rgba(0,0,0,0.45);"></div>`,
-            iconSize: [13, 13], iconAnchor: [6, 6]
+            className:'',
+            html:`<div style="width:12px;height:12px;border-radius:50%;background:${c};border:2px solid rgba(255,255,255,0.8);box-shadow:0 0 6px ${c}88;"></div>`,
+            iconSize:[12,12], iconAnchor:[6,6]
         });
     }
 
-    /* =====================================================
-       热力图模块
-    ===================================================== */
-    /** 当前地图显示模式：'normal'（标记）| 'heat'（热力图） */
-    let currentMapMode = 'normal';
-    /** Leaflet.heat 图层，首次切换时懒加载 */
-    let heatLayer = null;
-
-    /**
-     * 切换地图模式
-     * @param {'normal'|'heat'} mode
-     */
-    async function switchMapMode(mode) {
-        if (mode === currentMapMode) return;
-        currentMapMode = mode;
-
-        // 更新 Tab 高亮
-        document.getElementById('btnMapNormal').classList.toggle('active', mode === 'normal');
-        document.getElementById('btnMapHeat').classList.toggle('active', mode === 'heat');
-
-        if (mode === 'heat') {
-            // 隐藏所有普通标记
-            Object.values(markers).forEach(m => map.removeLayer(m));
-
-            // 懒加载热力图数据（只请求一次，之后复用 heatLayer）
-            if (!heatLayer) {
-                try {
-                    const res  = await fetch('/api/detection/heatmap');
-                    const data = await res.json();
-                    // Leaflet.heat 接受 [lat, lng, intensity]
-                    // severityScore 最高约 15，归一化到 0~1
-                    const points = data.map(p => [
-                        p.lat,
-                        p.lng,
-                        Math.min((p.weight ?? 1) / 15, 1.0)
-                    ]);
-                    heatLayer = L.heatLayer(points, {
-                        radius:   25,
-                        blur:     20,
-                        maxZoom:  17,
-                        gradient: { 0.2: '#00bcd4', 0.5: '#ffeb3b', 0.8: '#ff5722', 1.0: '#b71c1c' }
-                    }).addTo(map);
-                } catch (e) {
-                    console.error('热力图数据加载失败:', e);
-                    // 回退到标记模式
-                    currentMapMode = 'normal';
-                    document.getElementById('btnMapNormal').classList.add('active');
-                    document.getElementById('btnMapHeat').classList.remove('active');
-                    Object.values(markers).forEach(m => m.addTo(map));
-                }
-            } else {
-                heatLayer.addTo(map);
-            }
-        } else {
-            // 切回标记模式：移除热力图层，恢复普通标记
-            if (heatLayer) map.removeLayer(heatLayer);
-            Object.values(markers).forEach(m => m.addTo(map));
-        }
-    }
-
-    /* =====================================================
-       页面状态变量
-    ===================================================== */
-    let currentPage    = 0;
-    let totalPages     = 1;
-    const PAGE_SIZE    = 20;
-    let currentRecords = [];        // 当前页的完整数据（未过滤）
-    let pendingDeleteId = null;     // 待确认删除的记录 id
-    let currentThresholds = {};     // 从后端拉取的当前各类型阈值
-
-    /* =====================================================
-       初始化
-    ===================================================== */
-    document.addEventListener('DOMContentLoaded', () => {
-        document.getElementById('filterType')   .addEventListener('change', applyFilter);
-        document.getElementById('filterChannel').addEventListener('change', applyFilter);
-        document.getElementById('btn-prev').addEventListener('click', () => changePage(-1));
-        document.getElementById('btn-next').addEventListener('click', () => changePage(1));
-        document.getElementById('overlay') .addEventListener('click', closeDetail);
-        document.getElementById('closeBtn').addEventListener('click', closeDetail);
-        document.getElementById('btnCancelDel') .addEventListener('click', closeConfirm);
-        document.getElementById('btnConfirmDel').addEventListener('click', doDelete);
-
-        loadStats();
-        loadPage(0);
-    });
-
-    /* =====================================================
-       统计面板
-    ===================================================== */
-    function loadStats() {
-        fetch('/api/detection/stats')
-            .then(r => r.json())
-            .then(data => {
-                const total = data.total ?? 0;
-                document.getElementById('total-count') .textContent = total;
-                document.getElementById('header-badge').textContent = `共 ${total} 条记录`;
-                requestAnimationFrame(() => {
-                    drawPie(document.getElementById('pieCanvas'),  data.typeDistribution  || {});
-                    drawLine(document.getElementById('lineCanvas'), data.dailyTrend        || {});
-                    drawSevBars(data.severityDistribution || {});
-                });
-            })
-            .catch(e => {
-                console.error('stats:', e);
-                document.getElementById('header-badge').textContent = '统计加载失败';
-            });
-    }
-
-    // 窗口大小变化时重绘 Canvas 图表
-    window.addEventListener('resize', () => {
-        fetch('/api/detection/stats').then(r => r.json()).then(data => {
-            drawPie(document.getElementById('pieCanvas'),  data.typeDistribution || {});
-            drawLine(document.getElementById('lineCanvas'), data.dailyTrend      || {});
-        }).catch(() => {});
-    });
-
-    /* =====================================================
-       原生 Canvas 饼图
-    ===================================================== */
-    function drawPie(canvas, typeData) {
-        const keys   = Object.keys(typeData);
-        const values = keys.map(k => typeData[k]);
-        const colors = keys.map(k => tColor(k));
-        const labels = keys.map(k => TYPE_CONFIG[k]?.label ?? k);
-        const total  = values.reduce((a, b) => a + b, 0);
-        if (total === 0) return;
-
-        const wrap = canvas.parentElement;
-        const W = wrap.clientWidth || 220, H = wrap.clientHeight || 130;
-        canvas.width = W; canvas.height = H;
-        const ctx = canvas.getContext('2d');
-        ctx.clearRect(0, 0, W, H);
-
-        const legendW = 90, chartW = W - legendW;
-        const r = Math.min(chartW, H) / 2 - 6;
-        const cx = chartW / 2, cy = H / 2;
-
-        let startAngle = -Math.PI / 2;
-        values.forEach((v, i) => {
-            const slice = (v / total) * Math.PI * 2;
-            ctx.beginPath(); ctx.moveTo(cx, cy);
-            ctx.arc(cx, cy, r, startAngle, startAngle + slice);
-            ctx.closePath();
-            ctx.fillStyle = colors[i]; ctx.fill();
-            ctx.strokeStyle = '#111d36'; ctx.lineWidth = 1.5; ctx.stroke();
-            startAngle += slice;
-        });
-
-        const legendX = chartW + 6, lineH = 16;
-        const startY = Math.max(6, (H - keys.length * lineH) / 2);
-        ctx.font = '10px Microsoft YaHei, sans-serif';
-        keys.forEach((k, i) => {
-            const y = startY + i * lineH;
-            ctx.fillStyle = colors[i];
-            ctx.fillRect(legendX, y + 2, 10, 10);
-            ctx.fillStyle = '#9aaac8';
-            const lbl = labels[i].length > 5 ? labels[i].slice(0, 5) + '…' : labels[i];
-            ctx.fillText(`${lbl} ${values[i]}`, legendX + 14, y + 11);
-        });
-    }
-
-    /* =====================================================
-       原生 Canvas 折线图
-    ===================================================== */
-    function drawLine(canvas, trendData) {
-        const rawKeys = Object.keys(trendData);
-        const values  = rawKeys.map(k => Number(trendData[k]));
-        if (rawKeys.length === 0) return;
-
-        const wrap = canvas.parentElement;
-        const W = wrap.clientWidth || 400, H = wrap.clientHeight || 130;
-        canvas.width = W; canvas.height = H;
-        const ctx = canvas.getContext('2d');
-        ctx.clearRect(0, 0, W, H);
-
-        const padL = 32, padR = 12, padT = 10, padB = 28;
-        const chartW = W - padL - padR, chartH = H - padT - padB;
-        const maxVal = Math.max(...values, 1);
-        const yMax   = Math.ceil(maxVal * 1.25) || 1;
-
-        // Y 轴网格线
-        ctx.strokeStyle = 'rgba(37,48,96,0.7)'; ctx.lineWidth = 0.5;
-        ctx.font = '9px Microsoft YaHei, sans-serif'; ctx.fillStyle = '#7a8fbb'; ctx.textAlign = 'right';
-        const ySteps = Math.min(yMax, 5);
-        for (let i = 0; i <= ySteps; i++) {
-            const yVal = Math.round((yMax / ySteps) * i);
-            const y    = padT + chartH - (yVal / yMax) * chartH;
-            ctx.beginPath(); ctx.moveTo(padL, y); ctx.lineTo(padL + chartW, y); ctx.stroke();
-            ctx.fillText(yVal, padL - 3, y + 3);
-        }
-
-        // X 轴刻度（最多显示 8 个，末尾必显示）
-        ctx.textAlign = 'center'; ctx.fillStyle = '#7a8fbb';
-        const n = rawKeys.length, step = Math.max(1, Math.ceil(n / 8));
-        rawKeys.forEach((k, i) => {
-            if (i % step !== 0 && i !== n - 1) return;
-            const x   = padL + (i / Math.max(n - 1, 1)) * chartW;
-            const lbl = k.length >= 10 ? k.slice(5, 10) : k;
-            ctx.fillText(lbl, x, H - padB + 14);
-        });
-
-        // 数据点坐标
-        const pts = values.map((v, i) => ({
-            x: padL + (i / Math.max(n - 1, 1)) * chartW,
-            y: padT + chartH - (v / yMax) * chartH
-        }));
-
-        // 面积填充
-        ctx.beginPath(); ctx.moveTo(pts[0].x, padT + chartH);
-        pts.forEach(p => ctx.lineTo(p.x, p.y));
-        ctx.lineTo(pts[pts.length - 1].x, padT + chartH); ctx.closePath();
-        ctx.fillStyle = 'rgba(79,195,247,0.12)'; ctx.fill();
-
-        // 折线
-        ctx.beginPath(); ctx.strokeStyle = '#4fc3f7'; ctx.lineWidth = 2; ctx.lineJoin = 'round';
-        pts.forEach((p, i) => i === 0 ? ctx.moveTo(p.x, p.y) : ctx.lineTo(p.x, p.y));
-        ctx.stroke();
-
-        // 数据点圆圈 + 数值标注（数据少时显示）
-        pts.forEach((p, i) => {
-            ctx.beginPath(); ctx.arc(p.x, p.y, n <= 10 ? 4 : 2, 0, Math.PI * 2);
-            ctx.fillStyle = '#4fc3f7'; ctx.strokeStyle = '#111d36'; ctx.lineWidth = 1.5;
-            ctx.fill(); ctx.stroke();
-            if (n <= 10) {
-                ctx.fillStyle = '#9aaac8'; ctx.font = '9px Microsoft YaHei, sans-serif';
-                ctx.textAlign = 'center'; ctx.fillText(values[i], p.x, p.y - 7);
-            }
-        });
-    }
-
-    /* =====================================================
-       严重程度横向条形图（统计面板）
-    ===================================================== */
-    function drawSevBars(sevData) {
-        const wrap = document.getElementById('sevBars');
-        if (!wrap) return;
-        const SEV_META = [
-            { key: 'critical', label: '紧急', color: '#ef5350' },
-            { key: 'high',     label: '高危', color: '#ffa726' },
-            { key: 'medium',   label: '中危', color: '#ffee58' },
-            { key: 'low',      label: '低危', color: '#9ccc65' },
-        ];
-        const total = Object.values(sevData).reduce((a, b) => a + Number(b), 0) || 1;
-        wrap.innerHTML = SEV_META.map(({ key, label, color }) => {
-            const cnt = Number(sevData[key] ?? 0);
-            const pct = Math.round((cnt / total) * 100);
-            return `<div class="sev-bar-row">
-            <span class="sev-bar-label">${label}</span>
-            <div class="sev-bar-bg">
-                <div class="sev-bar-fill" style="width:${pct}%;background:${color};"></div>
-            </div>
-            <span class="sev-bar-count">${cnt}</span>
-        </div>`;
-        }).join('');
-    }
-
-    /* =====================================================
-       分页加载
-    ===================================================== */
-    function loadPage(page) {
-        document.getElementById('recordList').innerHTML = '<div class="list-loading">加载中…</div>';
-        fetch(`/api/detection/list?page=${page}&size=${PAGE_SIZE}`)
-            .then(r => r.json())
-            .then(data => {
-                currentPage    = data.currentPage ?? page;
-                totalPages     = data.totalPages  ?? 1;
-                currentRecords = data.content     ?? [];
-                document.getElementById('page-info').textContent =
-                    `第 ${currentPage + 1} / ${Math.max(totalPages, 1)} 页`;
-                document.getElementById('btn-prev').disabled = currentPage === 0;
-                document.getElementById('btn-next').disabled = currentPage >= totalPages - 1;
-                applyFilter();
-                syncMapMarkers(currentRecords);
-            })
-            .catch(() => {
-                document.getElementById('recordList').innerHTML =
-                    '<div class="no-data">⚠️ 加载失败，请刷新重试</div>';
-            });
-    }
-
-    function changePage(delta) {
-        const next = currentPage + delta;
-        if (next >= 0 && next < totalPages) loadPage(next);
-    }
-
-    /* =====================================================
-       列表渲染（含置信度过滤 + 低置信度置灰排末尾）
-    ===================================================== */
-    function applyFilter() {
-        const typeF    = document.getElementById('filterType').value;
-        const channelF = document.getElementById('filterChannel').value;
-
-        // 按筛选条件过滤
-        const filtered = currentRecords.filter(d =>
-            (!typeF    || d.defectType === typeF) &&
-            (!channelF || d.channel    === channelF)
+    function applyMapFilter() {
+        const tf = document.getElementById('mapFilterType').value;
+        const cf = document.getElementById('mapFilterChannel').value;
+        const filtered = allRecords.filter(d =>
+            (!tf || d.defectType === tf) && (!cf || d.channel === cf)
         );
-
-        // 分组：normal = 达标，low = 低置信度（排末尾 + 置灰）
-        const normal = [], low = [];
-        filtered.forEach(d => {
-            // 优先读阈值滑块（弹窗已开着时），否则用上次从后端拉取的值
-            const slider = document.getElementById('tr-' + d.defectType);
-            const threshold = slider
-                ? parseInt(slider.value) / 100
-                : (currentThresholds[d.defectType] ?? 0.50);
-            ((d.confidence ?? 0) >= threshold ? normal : low).push(d);
-        });
-
-        const list = document.getElementById('recordList');
-        const allGroups = [...normal, ...low];
-
-        if (allGroups.length === 0) {
-            list.innerHTML = '<div class="no-data">暂无符合条件的记录</div>';
-            return;
-        }
-
-        list.innerHTML = allGroups.map(d => {
-            const isLow = low.includes(d);
-
-            // 缩略图
-            const imgHtml = d.imageName
-                ? `<img src="/images/${d.imageName}" class="card-img" alt="图"
-                    onerror="this.outerHTML='<div class=\\'card-img-placeholder\\'>无图片</div>'">`
-                : `<div class="card-img-placeholder">无图片</div>`;
-
-            const conf    = ((d.confidence ?? 0) * 100).toFixed(1);
-            const timeStr = (d.uploadTime ?? '').toString().substring(0, 19);
-            const tagCls  = d.channel === 'A' ? 'tag-A' : 'tag-B';
-
-            const lowStyle = isLow ? 'opacity:0.45; filter:grayscale(60%);' : '';
-            const lowTag   = isLow
-                ? `<span class="tag" style="background:#f5f5f5;color:#bbb;border:1px solid #e0e0e0;">低置信度</span>`
-                : '';
-
-            const sevTag = d.severityLevel
-                ? `<span class="tag sev-${d.severityLevel}">${SEV_CONFIG[d.severityLevel] ?? d.severityLevel}</span>`
-                : '';
-
-            const hs = d.handleStatus || 'pending';
-            const sc = STATUS_CONFIG[hs] || STATUS_CONFIG.pending;
-            const statusTag = `<span class="status-badge ${sc.cls}">${sc.label}</span>`;
-
-            // data-* 属性用于 selectCard 传递完整状态，避免再次请求接口
-            return `<div class="card" id="card-${d.id}" style="${lowStyle}"
-             data-id="${d.id}"
-             data-lat="${d.latitude}"   data-lng="${d.longitude}"
-             data-type="${d.defectType}" data-channel="${d.channel}" data-conf="${d.confidence}"
-             data-image="${(d.imageName      ?? '').replace(/"/g, '&quot;')}"
-             data-after-image="${(d.afterImageName ?? '').replace(/"/g, '&quot;')}"
-             data-handle-status="${d.handleStatus ?? 'pending'}"
-             data-handle-by="${(d.handleBy    ?? '').replace(/"/g, '&quot;')}"
-             data-handle-time="${(d.handleTime ?? '').toString().replace(/"/g, '&quot;')}"
-             data-device="${(d.deviceId  ?? '').replace(/"/g, '&quot;')}"
-             data-time="${(d.uploadTime ?? '').toString().replace(/"/g, '&quot;')}"
-             onclick="selectCard(this)">
-            ${imgHtml}
-            <div class="card-info">
-                <div class="card-title">
-                    <span>${tLabel(d.defectType)}</span>
-                    <span class="tag ${tagCls}">通道${d.channel}</span>
-                    ${sevTag}${lowTag}${statusTag}
-                </div>
-                <div class="card-conf">置信度: ${conf}%</div>
-                <div class="card-meta">${timeStr}</div>
-            </div>
-            <button class="btn-del" title="删除"
-                    onclick="askDelete(event, ${d.id}, '${d.defectType}')">🗑</button>
-        </div>`;
-        }).join('');
+        syncMapMarkers(filtered);
     }
 
-    /* =====================================================
-       地图标记同步
-    ===================================================== */
     function syncMapMarkers(records) {
-        // 清除旧标记
+        if (!map) return;
         Object.values(markers).forEach(m => map.removeLayer(m));
         Object.keys(markers).forEach(k => delete markers[k]);
 
@@ -1014,326 +1180,788 @@
         records.forEach(d => {
             const lat = parseFloat(d.latitude), lng = parseFloat(d.longitude);
             if (isNaN(lat) || isNaN(lng)) return;
-
-            const conf   = ((d.confidence ?? 0) * 100).toFixed(1);
+            const conf = ((d.confidence ?? 0) * 100).toFixed(1);
             const marker = L.marker([lat, lng], { icon: makeIcon(d.defectType) })
                 .addTo(map)
-                .bindPopup(`<b>${tLabel(d.defectType)}</b><br>置信度: ${conf}%<br>通道: ${d.channel}`);
-
-            // 点击地图标记时同步高亮列表卡片并展开详情
-            marker.on('click', () => {
-                const card = document.getElementById('card-' + d.id);
-                card ? selectCard(card) : fillAndShow(d);
-            });
-
+                .bindPopup(`<b style="color:#e8edf7">${tLabel(d.defectType)}</b><br>置信度: ${conf}%<br>通道: ${d.channel}`);
+            marker.on('click', () => openDrawer(d));
+            if (currentMapMode === 'heat') map.removeLayer(marker);
             markers[d.id] = marker;
             coords.push([lat, lng]);
         });
+        if (coords.length > 0) map.fitBounds(coords, { padding:[40,40] });
+    }
 
-        // 如果切换分页时处于热力图模式，隐藏新标记；旧热力图数据已失效，置空重新拉
-        if (currentMapMode === 'heat') {
+    async function switchMapMode(mode) {
+        if (mode === currentMapMode) return;
+        currentMapMode = mode;
+        document.getElementById('btnMapNormal').classList.toggle('active', mode === 'normal');
+        document.getElementById('btnMapHeat').classList.toggle('active', mode === 'heat');
+
+        if (mode === 'heat') {
             Object.values(markers).forEach(m => map.removeLayer(m));
-            // 分页切换后坐标集合变了，需要重建热力图
-            if (heatLayer) { map.removeLayer(heatLayer); heatLayer = null; }
-            // 自动重新加载热力图（复用 switchMapMode 逻辑）
-            switchMapMode('heat');
+            if (!heatLayer) {
+                try {
+                    const res = await fetch('/api/detection/heatmap');
+                    const data = await res.json();
+                    const points = data.map(p => [p.lat, p.lng, Math.min((p.weight ?? 1)/15, 1.0)]);
+                    heatLayer = L.heatLayer(points, {
+                        radius:25, blur:20, maxZoom:17,
+                        gradient:{ 0.2:'#0ea5e9', 0.5:'#f59e0b', 0.8:'#f97316', 1.0:'#ef4444' }
+                    }).addTo(map);
+                } catch(e) {
+                    currentMapMode = 'normal';
+                    document.getElementById('btnMapNormal').classList.add('active');
+                    document.getElementById('btnMapHeat').classList.remove('active');
+                    Object.values(markers).forEach(m => m.addTo(map));
+                }
+            } else { heatLayer.addTo(map); }
+        } else {
+            if (heatLayer) map.removeLayer(heatLayer);
+            Object.values(markers).forEach(m => m.addTo(map));
+        }
+    }
+
+    function openDrawer(d) {
+        const drawer = document.getElementById('mapDrawer');
+        const lat = parseFloat(d.latitude), lng = parseFloat(d.longitude);
+
+        document.getElementById('dr-title').textContent = tLabel(d.defectType) + ` #${d.id}`;
+
+        // 标签
+        const tags = document.getElementById('dr-tags');
+        const tagCls = d.channel === 'A' ? 'tag-A' : 'tag-B';
+        const sevTag = d.severityLevel
+            ? `<span class="tag sev-${d.severityLevel}">${SEV_CONFIG[d.severityLevel]}</span>` : '';
+        const hs = d.handleStatus || 'pending';
+        const sc = STATUS_CONFIG[hs] || STATUS_CONFIG.pending;
+        tags.innerHTML = `<span class="tag ${tagCls}">通道${d.channel}</span>${sevTag}
+    <span class="tag ${sc.cls}">${sc.label}</span>`;
+
+        // 图片
+        const drImg = document.getElementById('dr-img');
+        const drPh  = document.getElementById('dr-img-ph');
+        if (d.imageName) {
+            drImg.src = '/images/' + d.imageName; drImg.style.display = 'block'; drPh.style.display = 'none';
+        } else {
+            drImg.style.display = 'none'; drPh.style.display = 'flex';
         }
 
-        if (coords.length > 0) map.fitBounds(coords, { padding: [40, 40] });
+        document.getElementById('dr-conf').textContent    = `${((d.confidence??0)*100).toFixed(1)}%`;
+        document.getElementById('dr-channel').textContent = `通道${d.channel}${d.channel==='A'?'（IMU触发）':'（实时检测）'}`;
+        document.getElementById('dr-gps').textContent     = (!isNaN(lat)&&!isNaN(lng)) ? `${lat.toFixed(6)}, ${lng.toFixed(6)}` : '—';
+        document.getElementById('dr-device').textContent  = d.deviceId || '—';
+        document.getElementById('dr-time').textContent    = (d.uploadTime||'').toString().substring(0,19) || '—';
+        document.getElementById('dr-status').innerHTML    = `<span class="tag ${sc.cls}">${sc.label}</span>`;
+
+        drawer.classList.add('open');
+    }
+
+    function closeDrawer() {
+        document.getElementById('mapDrawer').classList.remove('open');
     }
 
     /* =====================================================
-       卡片选中 & 详情弹窗
+       统计数据加载
     ===================================================== */
+    let statsCache = null;
 
-    /** 点击列表卡片：高亮卡片 → 地图定位 → 展开详情 */
-    function selectCard(card) {
-        document.querySelectorAll('.card.selected').forEach(c => c.classList.remove('selected'));
-        card.classList.add('selected');
+    function loadStats(cb) {
+        fetch('/api/detection/stats').then(r=>r.json()).then(data => {
+            statsCache = data;
+            const total = data.total ?? 0;
+            document.getElementById('header-badge').textContent = `共 ${total} 条记录`;
+            document.getElementById('m-total').textContent    = total;
+            document.getElementById('m-critical').textContent = data.severityDistribution?.critical ?? 0;
 
-        const lat = parseFloat(card.dataset.lat), lng = parseFloat(card.dataset.lng);
-        if (!isNaN(lat) && !isNaN(lng)) {
-            map.setView([lat, lng], 17);
-            markers[card.dataset.id]?.openPopup();
-        }
-
-        fillAndShow({
-            id:             card.dataset.id,
-            defectType:     card.dataset.type,
-            confidence:     parseFloat(card.dataset.conf),
-            channel:        card.dataset.channel,
-            latitude:       lat,
-            longitude:      lng,
-            deviceId:       card.dataset.device,
-            uploadTime:     card.dataset.time,
-            imageName:      card.dataset.image,
-            afterImageName: card.dataset.afterImage,
-            handleStatus:   card.dataset.handleStatus,
-            handleBy:       card.dataset.handleBy,
-            handleTime:     card.dataset.handleTime,
+            if (cb) cb(data);
+        }).catch(() => {
+            document.getElementById('header-badge').textContent = '统计加载失败';
         });
     }
 
-    /**
-     * 填充并展示详情弹窗
-     * 每次切换记录时必须完整重置「处理后图片」区域的所有状态，
-     * 防止上一条记录的 file input / 预览图 / 按钮状态残留。
-     */
-    function fillAndShow(d) {
+    function loadDashboard() {
+        loadStats(data => {
+            document.getElementById('m-pending').textContent  = '—';
+            document.getElementById('m-resolved').textContent = '—';
+            requestAnimationFrame(() => {
+                // dashPieCanvas 已不在概览页，只绘制折线图和严重程度条
+                const lineCanvas = document.getElementById('dashLineCanvas');
+                if (lineCanvas) drawLine(lineCanvas, data.dailyTrend || {}, 160);
+                drawSevBars('dash-sev-bars', data.severityDistribution || {});
+
+                // 处理进度环
+                const sev = data.severityDistribution || {};
+                // 用 stats 里没有的状态分布先填占位，等 list 接口回来再更新
+            });
+        });
+
+        fetch('/api/detection/list?page=0&size=20').then(r=>r.json()).then(data => {
+            const records = data.content || [];
+            allRecords = records;
+
+            const pending    = records.filter(d => (d.handleStatus||'pending') === 'pending').length;
+            const processing = records.filter(d => d.handleStatus === 'processing').length;
+            const resolved   = records.filter(d => d.handleStatus === 'resolved').length;
+            const ignored    = records.filter(d => d.handleStatus === 'ignored').length;
+            const total      = records.length || 1;
+
+            document.getElementById('m-pending').textContent  = pending + (pending === records.length ? '+' : '');
+            document.getElementById('m-resolved').textContent = resolved;
+
+            // 通道分布
+            const chA = records.filter(d => d.channel === 'A').length;
+            const chB = records.filter(d => d.channel === 'B').length;
+            const chTotal = (chA + chB) || 1;
+            document.getElementById('ch-a-cnt').textContent = chA;
+            document.getElementById('ch-b-cnt').textContent = chB;
+            document.getElementById('ch-a-bar').style.width = Math.round(chA/chTotal*100) + '%';
+            document.getElementById('ch-b-bar').style.width = Math.round(chB/chTotal*100) + '%';
+
+            // 处理进度环
+            const pct = Math.round((resolved / total) * 100);
+            document.getElementById('progressPct').textContent = pct + '%';
+            document.getElementById('cnt-resolved').textContent  = resolved;
+            document.getElementById('cnt-pending2').textContent  = pending;
+            document.getElementById('cnt-processing').textContent = processing;
+            document.getElementById('cnt-ignored').textContent   = ignored;
+            drawProgressRing(pct, resolved, processing, pending, ignored);
+
+            // 告警 feed
+            const urgent = records.filter(d => d.severityLevel === 'critical' || d.severityLevel === 'high').slice(0, 6);
+            const alertList = document.getElementById('dash-alerts');
+            if (urgent.length === 0) {
+                alertList.innerHTML = '<div style="color:var(--text3);font-size:12px;padding:8px 0;">暂无紧急/高危记录 ✓</div>';
+                return;
+            }
+            alertList.innerHTML = urgent.map(d => {
+                const conf = ((d.confidence??0)*100).toFixed(1);
+                const time = (d.uploadTime||'').toString().substring(5,16);
+                return `<div class="alert-item" onclick="showDetailFromData(${JSON.stringify(d).replace(/"/g,'&quot;')})">
+        <div class="alert-dot ${d.severityLevel}"></div>
+        <span class="alert-type">${tLabel(d.defectType)}</span>
+        <span class="alert-conf">${conf}%</span>
+        <span class="alert-time">${time}</span>
+        <span class="tag sev-${d.severityLevel}">${SEV_CONFIG[d.severityLevel]}</span>
+      </div>`;
+            }).join('');
+        }).catch(() => {});
+    }
+
+    function drawProgressRing(pct, resolved, processing, pending, ignored) {
+        const canvas = document.getElementById('progressRingCanvas');
+        if (!canvas) return;
+        const ctx = canvas.getContext('2d');
+        const W = 110, H = 110, cx = W/2, cy = H/2, r = 42, lw = 10;
+        ctx.clearRect(0, 0, W, H);
+
+        const total = resolved + processing + pending + ignored || 1;
+        const segments = [
+            { val: resolved,   color: '#4ade80' },
+            { val: processing, color: '#60a5fa' },
+            { val: pending,    color: '#fbbf24' },
+            { val: ignored,    color: '#94a3b8' },
+        ];
+
+        // 背景圆
+        ctx.beginPath(); ctx.arc(cx, cy, r, 0, Math.PI*2);
+        ctx.strokeStyle = '#1d2a42'; ctx.lineWidth = lw; ctx.stroke();
+
+        let startAngle = -Math.PI / 2;
+        segments.forEach(seg => {
+            if (seg.val <= 0) return;
+            const sweep = (seg.val / total) * Math.PI * 2;
+            ctx.beginPath(); ctx.arc(cx, cy, r, startAngle, startAngle + sweep);
+            ctx.strokeStyle = seg.color; ctx.lineWidth = lw;
+            ctx.lineCap = 'butt'; ctx.stroke();
+            startAngle += sweep;
+        });
+    }
+
+    let anlCharts = {};
+
+    function drawAnalytics() {
+        if (!statsCache) {
+            loadStats(data => { _renderAnalyticsCharts(data); });
+        } else {
+            _renderAnalyticsCharts(statsCache);
+        }
+    }
+
+    function _renderAnalyticsCharts(data) {
+        const gridColor = 'rgba(99,130,180,0.1)';
+        const tickColor = '#556480';
+        const borderBg  = '#0d1421';
+
+        const sev   = data.severityDistribution || {};
+        const total = data.total ?? 0;
+
+        // 顶部比例指标
+        document.getElementById('anl-total').textContent      = total;
+        const critPct = total ? Math.round((Number(sev.critical??0)/total)*100) : 0;
+        const highPct = total ? Math.round((Number(sev.high??0)/total)*100) : 0;
+        document.getElementById('anl-crit-pct').textContent   = critPct + '%';
+        document.getElementById('anl-high-pct').textContent   = highPct + '%';
+        // 解决率从 currentRecords 估算
+        const resolvedCnt = currentRecords.filter(d=>d.handleStatus==='resolved').length;
+        const totalSample = currentRecords.length;
+        document.getElementById('anl-resolve-pct').textContent =
+            totalSample ? Math.round((resolvedCnt/totalSample)*100) + '%' : '—';
+
+        // ── 甜甜圈图 ──
+        const typeData  = data.typeDistribution || {};
+        const TYPE_COLORS = {
+            crack:'#f87171', patched_crack:'#fb923c', pothole:'#ef4444',
+            patched_pothole:'#f97316', alligator_crack:'#a855f7',
+            patched_alligator_crack:'#c084fc', manhole:'#22d3ee', street_waste:'#a78bfa',
+        };
+        const TYPE_CN = {
+            crack:'裂缝', patched_crack:'修补裂缝', pothole:'坑槽',
+            patched_pothole:'修补坑槽', alligator_crack:'网裂',
+            patched_alligator_crack:'修补网裂', manhole:'检查井', street_waste:'路面垃圾',
+        };
+        const pieKeys   = Object.keys(typeData).filter(k=>typeData[k]>0);
+        const pieVals   = pieKeys.map(k=>typeData[k]);
+        const pieColors = pieKeys.map(k=>TYPE_COLORS[k]??'#3b82f6');
+        const pieTotal  = pieVals.reduce((a,b)=>a+b,0)||1;
+
+        const legEl = document.getElementById('anlPieLegend');
+        legEl.innerHTML = pieKeys.map((k,i)=>
+            `<span style="display:flex;align-items:center;gap:4px;font-size:11px;color:var(--text2);">
+      <span style="width:8px;height:8px;border-radius:50%;background:${pieColors[i]};flex-shrink:0;"></span>
+      ${TYPE_CN[k]??k} <span style="font-family:var(--mono);color:var(--text3);">${pieVals[i]}</span>
+    </span>`
+        ).join('');
+
+        if (anlCharts.pie) anlCharts.pie.destroy();
+        anlCharts.pie = new Chart(document.getElementById('anlPieCanvas'), {
+            type:'doughnut',
+            data:{
+                labels: pieKeys.map(k=>TYPE_CN[k]??k),
+                datasets:[{
+                    data: pieVals,
+                    backgroundColor: pieColors,
+                    borderColor: borderBg,
+                    borderWidth: 2,
+                    hoverOffset: 8,
+                }]
+            },
+            options:{
+                responsive:true, maintainAspectRatio:false, cutout:'60%',
+                plugins:{
+                    legend:{display:false},
+                    tooltip:{ callbacks:{ label: ctx=>` ${ctx.label}: ${ctx.parsed} 条 (${Math.round(ctx.parsed/pieTotal*100)}%)` }}
+                }
+            }
+        });
+
+        // ── 严重程度横向条形图 ──
+        const SEV_LABELS = ['紧急','高危','中危','低危'];
+        const SEV_KEYS   = ['critical','high','medium','low'];
+        const SEV_COLORS = ['#ef4444','#f97316','#eab308','#22c55e'];
+        const sevVals    = SEV_KEYS.map(k=>Number(sev[k]??0));
+
+        if (anlCharts.sev) anlCharts.sev.destroy();
+        anlCharts.sev = new Chart(document.getElementById('anlSevCanvas'), {
+            type:'bar',
+            data:{
+                labels: SEV_LABELS,
+                datasets:[{
+                    data: sevVals,
+                    backgroundColor: SEV_COLORS,
+                    borderRadius: 4,
+                    borderSkipped: false,
+                }]
+            },
+            options:{
+                indexAxis:'y',
+                responsive:true, maintainAspectRatio:false,
+                plugins:{ legend:{display:false}, tooltip:{ callbacks:{ label: ctx=>` ${ctx.parsed.x} 条` }}},
+                scales:{
+                    x:{ grid:{color:gridColor}, ticks:{color:tickColor,font:{size:11},precision:0}, beginAtZero:true },
+                    y:{ grid:{display:false}, ticks:{color:'#8a9bc2',font:{size:12}} }
+                }
+            }
+        });
+
+        // ── 折线图 ──
+        const trendData = data.dailyTrend || {};
+        const tLabels   = Object.keys(trendData);
+        const tVals     = tLabels.map(k=>Number(trendData[k]));
+
+        if (anlCharts.line) anlCharts.line.destroy();
+        const lineCanvas = document.getElementById('anlLineCanvas');
+        const lineCtx    = lineCanvas.getContext('2d');
+        const grad = lineCtx.createLinearGradient(0,0,0,200);
+        grad.addColorStop(0,'rgba(59,130,246,0.22)');
+        grad.addColorStop(1,'rgba(59,130,246,0.02)');
+
+        anlCharts.line = new Chart(lineCanvas, {
+            type:'line',
+            data:{
+                labels: tLabels.map(k=>k.length>=10?k.slice(5,10):k),
+                datasets:[{
+                    label:'检测数量',
+                    data: tVals,
+                    borderColor:'#3b82f6',
+                    backgroundColor: grad,
+                    pointBackgroundColor:'#3b82f6',
+                    pointBorderColor: borderBg,
+                    pointBorderWidth:2,
+                    pointRadius:5,
+                    pointHoverRadius:8,
+                    borderWidth:2.5,
+                    tension:0.35,
+                    fill:true,
+                }]
+            },
+            options:{
+                responsive:true, maintainAspectRatio:false,
+                plugins:{ legend:{display:false}, tooltip:{ callbacks:{ label: ctx=>` ${ctx.parsed.y} 条记录` }}},
+                scales:{
+                    x:{ grid:{color:gridColor}, ticks:{color:tickColor,font:{size:11},autoSkip:false,maxRotation:0} },
+                    y:{ grid:{color:gridColor}, ticks:{color:tickColor,font:{size:11},precision:0}, beginAtZero:true }
+                }
+            }
+        });
+    }
+
+    /* =====================================================
+       图表绘制
+    ===================================================== */
+    function drawPie(canvas, typeData, withLegend) {
+        const keys = Object.keys(typeData);
+        const vals = keys.map(k => typeData[k]);
+        const colors = keys.map(k => tColor(k));
+        const labels = keys.map(k => TYPE_CONFIG[k]?.label ?? k);
+        const total = vals.reduce((a,b)=>a+b, 0);
+        if (total === 0) return;
+
+        const wrap = canvas.parentElement;
+        const W = wrap.clientWidth||300, H = wrap.clientHeight||160;
+        canvas.width = W; canvas.height = H;
+        const ctx = canvas.getContext('2d');
+        ctx.clearRect(0,0,W,H);
+
+        const legendW = withLegend ? 110 : 0;
+        const chartW = W - legendW;
+        const r = Math.min(chartW, H)/2 - 8;
+        const cx = chartW/2, cy = H/2;
+
+        let start = -Math.PI/2;
+        vals.forEach((v,i) => {
+            const slice = (v/total)*Math.PI*2;
+            ctx.beginPath(); ctx.moveTo(cx,cy);
+            ctx.arc(cx,cy,r,start,start+slice); ctx.closePath();
+            ctx.fillStyle = colors[i]; ctx.fill();
+            ctx.strokeStyle = '#0d1421'; ctx.lineWidth = 2; ctx.stroke();
+            start += slice;
+        });
+
+        if (withLegend) {
+            const lx = chartW+8, lh = 16;
+            const sy = Math.max(4, (H - keys.length*lh)/2);
+            ctx.font = '11px Noto Sans SC, Microsoft YaHei, sans-serif';
+            keys.forEach((k,i) => {
+                const y = sy + i*lh;
+                ctx.fillStyle = colors[i];
+                ctx.beginPath(); ctx.arc(lx+5, y+6, 4, 0, Math.PI*2); ctx.fill();
+                ctx.fillStyle = '#8a9bc2';
+                const lbl = labels[i].length>5 ? labels[i].slice(0,5)+'…' : labels[i];
+                ctx.fillText(`${lbl} ${vals[i]}`, lx+14, y+10);
+            });
+        }
+    }
+
+    function drawLine(canvas, trendData, h) {
+        const rawKeys = Object.keys(trendData);
+        const values = rawKeys.map(k => Number(trendData[k]));
+        if (rawKeys.length === 0) return;
+
+        const wrap = canvas.parentElement;
+        const W = wrap.clientWidth||500, H = h||140;
+        canvas.width = W; canvas.height = H;
+        const ctx = canvas.getContext('2d');
+        ctx.clearRect(0,0,W,H);
+
+        const padL=34, padR=12, padT=12, padB=26;
+        const cW=W-padL-padR, cH=H-padT-padB;
+        const maxVal = Math.max(...values,1);
+        const yMax = Math.ceil(maxVal*1.25)||1;
+
+        ctx.strokeStyle='rgba(29,42,66,0.8)'; ctx.lineWidth=0.5;
+        ctx.font='9px JetBrains Mono, monospace'; ctx.fillStyle='#556480'; ctx.textAlign='right';
+        const ySteps = Math.min(yMax,5);
+        for (let i=0; i<=ySteps; i++) {
+            const yv = Math.round((yMax/ySteps)*i);
+            const y = padT+cH-(yv/yMax)*cH;
+            ctx.beginPath(); ctx.moveTo(padL,y); ctx.lineTo(padL+cW,y); ctx.stroke();
+            ctx.fillText(yv, padL-3, y+3);
+        }
+
+        ctx.textAlign='center'; ctx.fillStyle='#556480';
+        const n=rawKeys.length, step=Math.max(1,Math.ceil(n/8));
+        rawKeys.forEach((k,i) => {
+            if (i%step!==0 && i!==n-1) return;
+            const x = padL+(i/Math.max(n-1,1))*cW;
+            const lbl = k.length>=10 ? k.slice(5,10) : k;
+            ctx.fillText(lbl, x, H-padB+14);
+        });
+
+        const pts = values.map((v,i) => ({
+            x: padL+(i/Math.max(n-1,1))*cW,
+            y: padT+cH-(v/yMax)*cH
+        }));
+
+        // 渐变面积
+        const grad = ctx.createLinearGradient(0,padT,0,padT+cH);
+        grad.addColorStop(0,'rgba(59,130,246,0.25)');
+        grad.addColorStop(1,'rgba(59,130,246,0.02)');
+        ctx.beginPath(); ctx.moveTo(pts[0].x, padT+cH);
+        pts.forEach(p => ctx.lineTo(p.x,p.y));
+        ctx.lineTo(pts[pts.length-1].x, padT+cH); ctx.closePath();
+        ctx.fillStyle=grad; ctx.fill();
+
+        ctx.beginPath(); ctx.strokeStyle='#3b82f6'; ctx.lineWidth=2; ctx.lineJoin='round';
+        pts.forEach((p,i) => i===0 ? ctx.moveTo(p.x,p.y) : ctx.lineTo(p.x,p.y));
+        ctx.stroke();
+
+        pts.forEach((p,i) => {
+            ctx.beginPath(); ctx.arc(p.x,p.y,n<=10?3.5:2,0,Math.PI*2);
+            ctx.fillStyle='#3b82f6'; ctx.strokeStyle='#0d1421'; ctx.lineWidth=1.5;
+            ctx.fill(); ctx.stroke();
+            if (n<=10) {
+                ctx.fillStyle='#8a9bc2'; ctx.font='9px JetBrains Mono,monospace';
+                ctx.textAlign='center'; ctx.fillText(values[i],p.x,p.y-7);
+            }
+        });
+    }
+
+    function drawSevBars(wrapperId, sevData) {
+        const wrap = document.getElementById(wrapperId);
+        if (!wrap) return;
+        const SEV_META = [
+            { key:'critical', label:'紧急', color:'#ef4444' },
+            { key:'high',     label:'高危', color:'#f97316' },
+            { key:'medium',   label:'中危', color:'#eab308' },
+            { key:'low',      label:'低危', color:'#22c55e' },
+        ];
+        const total = Object.values(sevData).reduce((a,b)=>a+Number(b),0)||1;
+        wrap.innerHTML = SEV_META.map(({key,label,color}) => {
+            const cnt = Number(sevData[key]??0);
+            const pct = Math.round((cnt/total)*100);
+            return `<div class="sev-bar-row">
+      <span class="sev-bar-label">${label}</span>
+      <div class="sev-bar-bg"><div class="sev-bar-fill" style="width:${pct}%;background:${color};"></div></div>
+      <span class="sev-bar-count">${cnt}</span>
+    </div>`;
+        }).join('');
+    }
+
+    /* =====================================================
+       记录列表（表格模式）
+    ===================================================== */
+    let currentPage = 0, totalPages = 1;
+    const PAGE_SIZE = 20;
+    let currentRecords = [];
+    let currentThresholds = {};
+    let settingsLoaded = false;
+
+    function loadPage(page) {
+        document.getElementById('recTableBody').innerHTML = '<tr><td colspan="8" class="list-loading">加载中…</td></tr>';
+        fetch(`/api/detection/list?page=${page}&size=${PAGE_SIZE}`)
+            .then(r=>r.json())
+            .then(data => {
+                currentPage    = data.currentPage ?? page;
+                totalPages     = data.totalPages  ?? 1;
+                currentRecords = data.content     ?? [];
+                allRecords     = currentRecords;
+                document.getElementById('rec-page-info').textContent = `第 ${currentPage+1} / ${Math.max(totalPages,1)} 页`;
+                document.getElementById('rec-prev').disabled = currentPage===0;
+                document.getElementById('rec-next').disabled = currentPage>=totalPages-1;
+                document.getElementById('rec-total-info').textContent = `共 ${(data.totalElements ?? currentRecords.length)} 条`;
+                applyFilter();
+                if (map) syncMapMarkers(currentRecords);
+            })
+            .catch(() => {
+                document.getElementById('recTableBody').innerHTML = '<tr><td colspan="8" class="no-data">加载失败，请刷新重试</td></tr>';
+            });
+    }
+
+    function changePage(delta) {
+        const next = currentPage+delta;
+        if (next>=0 && next<totalPages) loadPage(next);
+    }
+
+    function clearDateFilter() {
+        document.getElementById('recDateFrom').value = '';
+        document.getElementById('recDateTo').value   = '';
+        applyFilter();
+    }
+
+    function applyFilter() {
+        const typeF    = document.getElementById('recFilterType').value;
+        const channelF = document.getElementById('recFilterChannel').value;
+        const statusF  = document.getElementById('recFilterStatus').value;
+        const sortF    = document.getElementById('recSortField').value;
+        const dateFrom = document.getElementById('recDateFrom').value;  // 'YYYY-MM-DD' or ''
+        const dateTo   = document.getElementById('recDateTo').value;
+
+        // 过滤
+        let filtered = currentRecords.filter(d => {
+            if (typeF    && d.defectType !== typeF)               return false;
+            if (channelF && d.channel    !== channelF)            return false;
+            if (statusF  && (d.handleStatus||'pending') !== statusF) return false;
+            if (dateFrom || dateTo) {
+                const t = (d.uploadTime||'').toString().substring(0,10); // 'YYYY-MM-DD'
+                if (dateFrom && t < dateFrom) return false;
+                if (dateTo   && t > dateTo)   return false;
+            }
+            return true;
+        });
+
+        // 排序
+        const SEV_ORDER = { critical:0, high:1, medium:2, low:3, null:4, undefined:4 };
+        if (sortF === 'severity') {
+            filtered.sort((a,b) => (SEV_ORDER[a.severityLevel]??4) - (SEV_ORDER[b.severityLevel]??4));
+        } else if (sortF === 'time_desc') {
+            filtered.sort((a,b) => (b.uploadTime||'').toString().localeCompare((a.uploadTime||'').toString()));
+        } else if (sortF === 'time_asc') {
+            filtered.sort((a,b) => (a.uploadTime||'').toString().localeCompare((b.uploadTime||'').toString()));
+        } else if (sortF === 'conf_desc') {
+            filtered.sort((a,b) => (b.confidence??0) - (a.confidence??0));
+        } else if (sortF === 'conf_asc') {
+            filtered.sort((a,b) => (a.confidence??0) - (b.confidence??0));
+        }
+
+        // 低置信度分组（排到末尾）
+        const normal=[], low=[];
+        filtered.forEach(d => {
+            const thr = currentThresholds[d.defectType] ?? 0.50;
+            ((d.confidence??0)>=thr ? normal : low).push(d);
+        });
+
+        const all = [...normal, ...low];
+
+        // 更新底部过滤信息
+        const filterInfo = document.getElementById('rec-filter-info');
+        if (filterInfo) {
+            const hasFilter = typeF || channelF || statusF || dateFrom || dateTo;
+            filterInfo.textContent = hasFilter ? `筛选后 ${all.length} 条` : '';
+        }
+
+        const tbody = document.getElementById('recTableBody');
+        if (all.length===0) {
+            tbody.innerHTML='<tr><td colspan="8" class="no-data">暂无符合条件的记录</td></tr>';
+            return;
+        }
+
+        tbody.innerHTML = all.map(d => {
+            const isLow = low.includes(d);
+            const conf = ((d.confidence??0)*100).toFixed(1);
+            const time = (d.uploadTime||'').toString().substring(0,19);
+            const tagCls = d.channel==='A' ? 'tag-A' : 'tag-B';
+            const hs = d.handleStatus||'pending';
+            const sc = STATUS_CONFIG[hs]||STATUS_CONFIG.pending;
+            const sevTag = d.severityLevel
+                ? `<span class="tag sev-${d.severityLevel}">${SEV_CONFIG[d.severityLevel]}</span>` : '';
+            const imgHtml = d.imageName
+                ? `<img class="td-img" src="/images/${d.imageName}" alt="" onerror="this.outerHTML='<div class=\\'td-no-img\\'>无图</div>'">`
+                : `<div class="td-no-img">无图</div>`;
+            const lowTag = isLow ? `<span class="tag" style="background:rgba(100,116,139,0.1);color:#64748b;border:1px solid rgba(100,116,139,0.2);">低置信度</span>` : '';
+
+            const dJson = JSON.stringify(d).replace(/\\/g,'\\\\').replace(/"/g,'&quot;');
+
+            return `<tr class="${isLow?'low-conf':''}" onclick="showDetailFromData(JSON.parse(this.dataset.d))" data-d="${dJson}">
+      <td>${imgHtml}</td>
+      <td class="td-type">${tLabel(d.defectType)}</td>
+      <td class="td-conf">${conf}%</td>
+      <td><span class="tag ${tagCls}">通道${d.channel}</span></td>
+      <td>${sevTag}</td>
+      <td>
+        <span class="tag ${sc.cls}">${sc.label}</span>
+        ${lowTag}
+      </td>
+      <td class="td-time">${time}</td>
+      <td>
+        <div class="td-actions">
+          <button class="act-btn" onclick="event.stopPropagation();showDetailFromData(JSON.parse(this.closest('tr').dataset.d))">详情</button>
+          <button class="act-btn del" onclick="event.stopPropagation();askDelete(${d.id},'${d.defectType}')">删除</button>
+        </div>
+      </td>
+    </tr>`;
+        }).join('');
+    }
+
+    /* =====================================================
+       详情弹窗
+    ===================================================== */
+    function showDetailFromData(d) {
         const lat = parseFloat(d.latitude), lng = parseFloat(d.longitude);
-
-        // 基础字段
-        document.getElementById('d-title')  .textContent = `病害详情 #${d.id}`;
-        document.getElementById('d-type')   .textContent = tLabel(d.defectType);
-        document.getElementById('d-conf')   .textContent = `${((d.confidence ?? 0) * 100).toFixed(1)}%`;
-        document.getElementById('d-channel').textContent =
-            `通道${d.channel}${d.channel === 'A' ? '（IMU触发）' : '（实时检测）'}`;
-        document.getElementById('d-gps')   .textContent =
-            (isNaN(lat) || isNaN(lng)) ? '-' : `${lat.toFixed(6)}, ${lng.toFixed(6)}`;
-        document.getElementById('d-device').textContent = d.deviceId  || '-';
-        document.getElementById('d-time')  .textContent = (d.uploadTime ?? '').toString().substring(0, 19) || '-';
-
-        // 当前记录 id 存到弹窗 data 属性，供 setStatus / submitResolve 读取
+        document.getElementById('d-title').textContent = `病害详情 #${d.id}`;
+        document.getElementById('d-type').textContent    = tLabel(d.defectType);
+        document.getElementById('d-conf').textContent    = `${((d.confidence??0)*100).toFixed(1)}%`;
+        document.getElementById('d-channel').textContent = `通道${d.channel}${d.channel==='A'?'（IMU触发）':'（实时检测）'}`;
+        document.getElementById('d-gps').textContent     = (!isNaN(lat)&&!isNaN(lng)) ? `${lat.toFixed(6)}, ${lng.toFixed(6)}` : '—';
+        document.getElementById('d-device').textContent  = d.deviceId||'—';
+        document.getElementById('d-time').textContent    = (d.uploadTime||'').toString().substring(0,19)||'—';
         document.getElementById('detailPanel').dataset.currentId = d.id;
 
-        // 处理状态高亮
-        const hs = d.handleStatus || 'pending';
+        const hs = d.handleStatus||'pending';
         document.querySelectorAll('.status-opt').forEach(btn => {
-            btn.className = 'status-opt' + (btn.dataset.val === hs ? ` active-${hs}` : '');
+            btn.className='status-opt'+(btn.dataset.val===hs?` active-${hs}`:'');
         });
         document.getElementById('d-handle-info').textContent = d.handleBy
-            ? `处理人：${d.handleBy}　时间：${(d.handleTime || '').toString().substring(0, 19)}`
-            : '';
-        document.getElementById('statusSaveTip').style.display = 'none';
+            ? `处理人：${d.handleBy}　时间：${(d.handleTime||'').toString().substring(0,19)}` : '';
+        document.getElementById('statusSaveTip').style.display='none';
 
-        // ── 处理前图片 ──────────────────────────────
-        const imgEl          = document.getElementById('d-img');
-        const imgPlaceholder = document.getElementById('d-img-placeholder');
-        const imgName = d.imageName ?? '';
-        if (imgName && imgName !== 'null') {
-            imgEl.src              = '/images/' + imgName;
-            imgEl.style.display    = 'block';
-            imgPlaceholder.style.display = 'none';
+        // 处理前图片
+        const imgEl = document.getElementById('d-img');
+        const imgPh = document.getElementById('d-img-ph');
+        if (d.imageName && d.imageName!=='null') {
+            imgEl.src=`/images/${d.imageName}`; imgEl.style.display='block'; imgPh.style.display='none';
         } else {
-            imgEl.style.display         = 'none';
-            imgPlaceholder.style.display = 'flex';
+            imgEl.style.display='none'; imgPh.style.display='flex';
         }
 
-        // ── 处理后图片 ──────────────────────────────
-        const afterImg         = document.getElementById('d-after-img');
-        const afterPlaceholder = document.getElementById('afterImgPlaceholder');
-        const afterName = d.afterImageName ?? '';
-        if (afterName && afterName !== 'null') {
-            afterImg.src                  = '/images/' + afterName;
-            afterImg.dataset.loaded       = 'true';   // 标记：已有服务器图片
-            afterImg.style.display        = 'block';
-            afterPlaceholder.style.display = 'none';
+        // 处理后图片
+        const afterImg = document.getElementById('d-after-img');
+        const afterPh  = document.getElementById('afterImgPlaceholder');
+        const afterName = d.afterImageName??'';
+        if (afterName && afterName!=='null') {
+            afterImg.src=`/images/${afterName}`; afterImg.dataset.loaded='true';
+            afterImg.style.display='block'; afterPh.style.display='none';
         } else {
-            afterImg.removeAttribute('src');
-            afterImg.dataset.loaded        = 'false';  // 标记：无图片
-            afterImg.style.display         = 'none';
-            afterPlaceholder.style.display = 'flex';
+            afterImg.removeAttribute('src'); afterImg.dataset.loaded='false';
+            afterImg.style.display='none'; afterPh.style.display='flex';
         }
 
-        // ── 重置上传区域（防止切换记录时残留） ──────
-        // file input 的 value='' 在部分浏览器无效，type 来回切换可强制清空
-        const inputEl = document.getElementById('afterImageInput');
-        inputEl.type  = 'text';
-        inputEl.type  = 'file';
-
-        document.getElementById('imgUploadTip').style.display = 'none';
-
-        // btnResolve 也需要在两处重置：这里（切换记录时）和 submitResolve 回调中（提交完成后）
+        // 重置上传区域
+        const inp = document.getElementById('afterImageInput');
+        inp.type='text'; inp.type='file';
+        document.getElementById('imgUploadTip').style.display='none';
         const btnR = document.getElementById('btnResolve');
-        btnR.style.display = 'none';
-        btnR.disabled      = false;
-        btnR.textContent   = '📷 确认已解决（提交处理后图片）';
+        btnR.style.display='none'; btnR.disabled=false;
+        btnR.textContent='📷 确认已解决（提交处理后图片）';
 
-        // 展示弹窗
         document.getElementById('detailPanel').classList.add('show');
-        document.getElementById('overlay')    .classList.add('show');
+        document.getElementById('overlay').classList.add('show');
     }
 
     function closeDetail() {
-        // 阈值弹窗覆盖在同一 overlay 上，关闭时不能误触详情弹窗
-        if (document.getElementById('thresholdPanel').classList.contains('show')) return;
         document.getElementById('detailPanel').classList.remove('show');
-        document.getElementById('overlay')    .classList.remove('show');
+        document.getElementById('overlay').classList.remove('show');
     }
 
     /* =====================================================
        处理状态管理
     ===================================================== */
-
-    /**
-     * 切换到非 resolved 状态（待处理 / 处理中 / 已忽略）
-     * 后端切回时会自动清除 after_image_name，前端同步隐藏处理后图片。
-     */
     function setStatus(val) {
         const id = document.getElementById('detailPanel').dataset.currentId;
         if (!id) return;
-
         fetch(`/api/detection/${id}/status`, {
-            method: 'PATCH',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ handleStatus: val })
-        })
-            .then(r => r.json())
-            .then(data => {
-                if (!data.success) return;
+            method:'PATCH', headers:{'Content-Type':'application/json'},
+            body:JSON.stringify({ handleStatus:val })
+        }).then(r=>r.json()).then(data => {
+            if (!data.success) return;
+            document.querySelectorAll('.status-opt').forEach(btn => {
+                btn.className='status-opt'+(btn.dataset.val===val?` active-${val}`:'');
+            });
+            document.getElementById('d-handle-info').textContent =
+                `处理人：${data.handleBy}　时间：${data.handleTime.substring(0,19)}`;
+            const tip=document.getElementById('statusSaveTip');
+            tip.textContent='✓ 状态已更新'; tip.style.display='block';
+            setTimeout(()=>tip.style.display='none',2000);
 
-                // 更新状态高亮
-                document.querySelectorAll('.status-opt').forEach(btn => {
-                    btn.className = 'status-opt' + (btn.dataset.val === val ? ` active-${val}` : '');
-                });
-                document.getElementById('d-handle-info').textContent =
-                    `处理人：${data.handleBy}　时间：${data.handleTime.substring(0, 19)}`;
-
-                // 提示
-                const tip = document.getElementById('statusSaveTip');
-                tip.style.display = 'block';
-                setTimeout(() => tip.style.display = 'none', 2000);
-
-                // 同步 currentRecords 缓存（供 applyFilter 重渲染用）
-                const rec = currentRecords.find(d => d.id == id);
-                if (rec) {
-                    rec.handleStatus   = val;
-                    rec.handleBy       = data.handleBy;
-                    rec.handleTime     = data.handleTime;
-                    rec.afterImageName = data.afterImageName || '';
-                    applyFilter();
-                }
-
-                // 如果处理后图片被后端清除，前端同步隐藏
-                if (!data.afterImageName) {
-                    const afterImg = document.getElementById('d-after-img');
-                    afterImg.style.display         = 'none';
-                    afterImg.removeAttribute('src');
-                    afterImg.dataset.loaded        = 'false';
-                    document.getElementById('afterImgPlaceholder').style.display = 'flex';
-                    document.getElementById('afterImageInput').value = '';
-                    document.getElementById('imgUploadTip').style.display = 'none';
-                }
-
-                // 隐藏「确认已解决」按钮
-                document.getElementById('btnResolve').style.display = 'none';
-            })
-            .catch(() => alert('状态更新失败，请重试'));
+            const rec = currentRecords.find(d=>d.id==id);
+            if (rec) {
+                rec.handleStatus=val; rec.handleBy=data.handleBy;
+                rec.handleTime=data.handleTime; rec.afterImageName=data.afterImageName||'';
+                applyFilter();
+            }
+            if (!data.afterImageName) {
+                const ai=document.getElementById('d-after-img');
+                ai.style.display='none'; ai.removeAttribute('src'); ai.dataset.loaded='false';
+                document.getElementById('afterImgPlaceholder').style.display='flex';
+                document.getElementById('imgUploadTip').style.display='none';
+            }
+            document.getElementById('btnResolve').style.display='none';
+        }).catch(()=>alert('状态更新失败，请重试'));
     }
 
-    /**
-     * 点击「已解决」按钮逻辑：
-     * - 已有处理后图片 → 直接标记，无需再上传
-     * - 没有处理后图片 → 展示「确认已解决」按钮，引导上传
-     */
     function onClickResolved() {
-        // 先高亮选中 resolved
         document.querySelectorAll('.status-opt').forEach(btn => {
-            btn.className = 'status-opt' + (btn.dataset.val === 'resolved' ? ' active-resolved' : '');
+            btn.className='status-opt'+(btn.dataset.val==='resolved'?' active-resolved':'');
         });
-
-        // 用 dataset.loaded 判断，避免受浏览器 URL 补全影响（不用 src.endsWith）
-        const afterImg   = document.getElementById('d-after-img');
-        const hasAfterImg = afterImg.dataset.loaded === 'true';
-
-        if (hasAfterImg) {
-            const tip = document.getElementById('statusSaveTip');
-            tip.textContent   = '✅ 已标记为已解决';
-            tip.style.display = 'block';
-            setTimeout(() => tip.style.display = 'none', 2000);
-            document.getElementById('btnResolve').style.display = 'none';
+        const afterImg=document.getElementById('d-after-img');
+        if (afterImg.dataset.loaded==='true') {
+            const tip=document.getElementById('statusSaveTip');
+            tip.textContent='✓ 已标记为已解决'; tip.style.display='block';
+            setTimeout(()=>tip.style.display='none',2000);
+            document.getElementById('btnResolve').style.display='none';
         } else {
-            document.getElementById('btnResolve').style.display = 'block';
+            document.getElementById('btnResolve').style.display='block';
         }
     }
 
-    /** 触发文件选择对话框 */
-    function triggerAfterUpload() {
-        document.getElementById('afterImageInput').click();
-    }
+    function triggerAfterUpload() { document.getElementById('afterImageInput').click(); }
 
-    /** 选择图片后本地预览（dataset.loaded 标记为 'preview'，尚未提交到服务器） */
     function previewAfterImage(input) {
-        if (!input.files || !input.files[0]) return;
-        const url      = URL.createObjectURL(input.files[0]);
-        const afterImg = document.getElementById('d-after-img');
-        afterImg.src           = url;
-        afterImg.dataset.loaded = 'preview';   // 区分「已有服务器图片(true)」和「本地预览(preview)」
-        afterImg.style.display = 'block';
-        document.getElementById('afterImgPlaceholder').style.display = 'none';
-        document.getElementById('imgUploadTip').style.display        = 'block';
-        document.getElementById('btnResolve').style.display          = 'block';
+        if (!input.files||!input.files[0]) return;
+        const url=URL.createObjectURL(input.files[0]);
+        const ai=document.getElementById('d-after-img');
+        ai.src=url; ai.dataset.loaded='preview'; ai.style.display='block';
+        document.getElementById('afterImgPlaceholder').style.display='none';
+        document.getElementById('imgUploadTip').style.display='block';
+        document.getElementById('btnResolve').style.display='block';
     }
 
-    /** 提交处理后图片 + 标记已解决（POST /resolve-with-image） */
     function submitResolve() {
-        const id    = document.getElementById('detailPanel').dataset.currentId;
-        const input = document.getElementById('afterImageInput');
-        if (!id || !input.files || !input.files[0]) { alert('请先选择处理后图片'); return; }
-
-        const btn = document.getElementById('btnResolve');
-        btn.disabled    = true;
-        btn.textContent = '上传中…';
-
-        const formData = new FormData();
-        formData.append('afterImage', input.files[0]);
-
-        fetch(`/api/detection/${id}/resolve-with-image`, { method: 'POST', body: formData })
-            .then(r => r.json())
-            .then(data => {
-                if (!data.success) {
-                    alert('提交失败：' + data.message);
-                    // 失败时也要重置按钮，避免卡在「上传中」
-                    btn.disabled    = false;
-                    btn.textContent = '📷 确认已解决（提交处理后图片）';
-                    return;
-                }
-
-                // 更新状态高亮
-                document.querySelectorAll('.status-opt').forEach(b => {
-                    b.className = 'status-opt' + (b.dataset.val === 'resolved' ? ' active-resolved' : '');
-                });
-                document.getElementById('d-handle-info').textContent =
-                    `处理人：${data.handleBy}　时间：${data.handleTime.substring(0, 19)}`;
-                document.getElementById('imgUploadTip').style.display = 'none';
-
-                // 重置按钮（成功时同样要重置，防止再次打开同一记录时按钮状态残留）
-                btn.style.display = 'none';
-                btn.disabled      = false;
-                btn.textContent   = '📷 确认已解决（提交处理后图片）';
-
-                // 用服务器返回的正式文件名替换预览 blob URL
-                const afterImg = document.getElementById('d-after-img');
-                afterImg.src           = '/images/' + data.afterImageName;
-                afterImg.dataset.loaded = 'true';
-
-                // 同步 currentRecords 缓存
-                const rec = currentRecords.find(d => d.id == id);
-                if (rec) {
-                    rec.handleStatus   = 'resolved';
-                    rec.handleBy       = data.handleBy;
-                    rec.handleTime     = data.handleTime;
-                    rec.afterImageName = data.afterImageName;
-                    applyFilter();
-                }
-
-                const tip = document.getElementById('statusSaveTip');
-                tip.textContent   = '✅ 已标记为已解决';
-                tip.style.display = 'block';
-                setTimeout(() => tip.style.display = 'none', 2500);
-            })
-            .catch(() => {
+        const id=document.getElementById('detailPanel').dataset.currentId;
+        const input=document.getElementById('afterImageInput');
+        if (!id||!input.files||!input.files[0]) { alert('请先选择处理后图片'); return; }
+        const btn=document.getElementById('btnResolve');
+        btn.disabled=true; btn.textContent='上传中…';
+        const fd=new FormData(); fd.append('afterImage',input.files[0]);
+        fetch(`/api/detection/${id}/resolve-with-image`,{method:'POST',body:fd})
+            .then(r=>r.json()).then(data => {
+            if (!data.success) {
+                alert('提交失败：'+data.message);
+                btn.disabled=false; btn.textContent='📷 确认已解决（提交处理后图片）';
+                return;
+            }
+            document.querySelectorAll('.status-opt').forEach(b => {
+                b.className='status-opt'+(b.dataset.val==='resolved'?' active-resolved':'');
+            });
+            document.getElementById('d-handle-info').textContent =
+                `处理人：${data.handleBy}　时间：${data.handleTime.substring(0,19)}`;
+            document.getElementById('imgUploadTip').style.display='none';
+            btn.style.display='none'; btn.disabled=false;
+            btn.textContent='📷 确认已解决（提交处理后图片）';
+            const ai=document.getElementById('d-after-img');
+            ai.src='/images/'+data.afterImageName; ai.dataset.loaded='true';
+            const rec=currentRecords.find(d=>d.id==id);
+            if (rec) {
+                rec.handleStatus='resolved'; rec.handleBy=data.handleBy;
+                rec.handleTime=data.handleTime; rec.afterImageName=data.afterImageName;
+                applyFilter();
+            }
+            const tip=document.getElementById('statusSaveTip');
+            tip.textContent='✓ 已标记为已解决'; tip.style.display='block';
+            setTimeout(()=>tip.style.display='none',2500);
+        })
+            .catch(()=>{
                 alert('提交失败，请重试');
-                btn.disabled    = false;
-                btn.textContent = '📷 确认已解决（提交处理后图片）';
+                btn.disabled=false; btn.textContent='📷 确认已解决（提交处理后图片）';
             });
     }
 
     /* =====================================================
-       删除功能
+       删除
     ===================================================== */
-    function askDelete(e, id, type) {
-        e.stopPropagation(); // 防止触发 selectCard
+    let pendingDeleteId = null;
+
+    function askDelete(id, type) {
         pendingDeleteId = id;
         document.getElementById('confirmMsg').innerHTML =
             `确定要删除 <b>#${id} ${tLabel(type)}</b> 这条记录吗？<br>此操作不可撤销。`;
@@ -1341,137 +1969,143 @@
     }
 
     function closeConfirm() {
-        pendingDeleteId = null;
+        pendingDeleteId=null;
         document.getElementById('confirmMask').classList.remove('show');
     }
 
     function doDelete() {
         if (!pendingDeleteId) return;
-        const id = pendingDeleteId;
-        closeConfirm();
-
-        fetch(`/api/detection/${id}`, { method: 'DELETE' })
-            .then(r => { if (!r.ok) throw new Error('删除失败'); return r.json(); })
-            .then(() => {
-                currentRecords = currentRecords.filter(d => d.id != id);
-                if (markers[id]) { map.removeLayer(markers[id]); delete markers[id]; }
+        const id=pendingDeleteId; closeConfirm();
+        fetch(`/api/detection/${id}`,{method:'DELETE'})
+            .then(r=>{ if(!r.ok) throw new Error(); return r.json(); })
+            .then(()=>{
+                currentRecords=currentRecords.filter(d=>d.id!=id);
+                if (map && markers[id]) { map.removeLayer(markers[id]); delete markers[id]; }
                 if (document.getElementById('d-title').textContent.includes(`#${id}`)) closeDetail();
-                applyFilter();
-                loadStats();
-                if (currentRecords.length === 0 && currentPage > 0) loadPage(currentPage - 1);
+                applyFilter(); loadStats();
+                if (currentRecords.length===0 && currentPage>0) loadPage(currentPage-1);
             })
-            .catch(err => alert('删除失败：' + err.message));
+            .catch(()=>alert('删除失败，请重试'));
     }
 
     /* =====================================================
        导出 CSV
     ===================================================== */
     function exportCSV() {
-        const typeF    = document.getElementById('filterType').value;
-        const channelF = document.getElementById('filterChannel').value;
-
-        let url = '/api/detection/export';
-        const params = [];
+        const typeF    = document.getElementById('recFilterType').value;
+        const channelF = document.getElementById('recFilterChannel').value;
+        let url='/api/detection/export';
+        const params=[];
         if (typeF)    params.push(`defectType=${encodeURIComponent(typeF)}`);
         if (channelF) params.push(`channel=${encodeURIComponent(channelF)}`);
-        if (params.length) url += '?' + params.join('&');
+        if (params.length) url+='?'+params.join('&');
 
-        fetch(url)
-            .then(r => r.json())
-            .then(records => {
-                if (records.length === 0) { alert('当前筛选条件下没有数据可导出'); return; }
-
-                const headers = ['ID', '病害类型', '中文名称', '置信度(%)', '触发通道', '纬度', '经度', '设备ID', '上传时间'];
-                const rows = records.map(d => [
-                    d.id,
-                    d.defectType,
-                    TYPE_CONFIG[d.defectType]?.label ?? d.defectType,
-                    ((d.confidence ?? 0) * 100).toFixed(1),
-                    d.channel === 'A' ? 'A(IMU触发)' : 'B(实时检测)',
-                    d.latitude,
-                    d.longitude,
-                    d.deviceId ?? '',
-                    (d.uploadTime ?? '').toString().substring(0, 19)
-                ]);
-
-                // UTF-8 BOM 保证 Excel 中文不乱码
-                const BOM = '\uFEFF';
-                const csv = BOM + [headers, ...rows]
-                    .map(row => row.map(v => `"${String(v).replace(/"/g, '""')}"`).join(','))
-                    .join('\r\n');
-
-                const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
-                const link = document.createElement('a');
-                link.href     = URL.createObjectURL(blob);
-                link.download = `路面病害数据_${new Date().toISOString().slice(0, 10)}.csv`;
-                link.click();
-                URL.revokeObjectURL(link.href);
-            })
-            .catch(() => alert('导出失败，请重试'));
+        fetch(url).then(r=>r.json()).then(records => {
+            if (records.length===0) { alert('当前筛选条件下没有数据可导出'); return; }
+            const headers=['ID','病害类型','中文名称','置信度(%)','触发通道','纬度','经度','设备ID','上传时间'];
+            const rows=records.map(d=>[
+                d.id, d.defectType,
+                TYPE_CONFIG[d.defectType]?.label??d.defectType,
+                ((d.confidence??0)*100).toFixed(1),
+                d.channel==='A'?'A(IMU触发)':'B(实时检测)',
+                d.latitude, d.longitude, d.deviceId??'',
+                (d.uploadTime||'').toString().substring(0,19)
+            ]);
+            const BOM='\uFEFF';
+            const csv=BOM+[headers,...rows].map(r=>r.map(v=>`"${String(v).replace(/"/g,'""')}"`).join(',')).join('\r\n');
+            const blob=new Blob([csv],{type:'text/csv;charset=utf-8;'});
+            const a=document.createElement('a');
+            a.href=URL.createObjectURL(blob);
+            a.download=`路面病害数据_${new Date().toISOString().slice(0,10)}.csv`;
+            a.click(); URL.revokeObjectURL(a.href);
+        }).catch(()=>alert('导出失败，请重试'));
     }
 
     /* =====================================================
-       阈值设置弹窗
+       阈值设置
     ===================================================== */
-    function openThreshold() {
-        fetch('/api/threshold/list')
-            .then(r => r.json())
-            .then(data => {
-                currentThresholds = data;
-                const tbody = document.getElementById('thresholdRows');
-                tbody.innerHTML = Object.keys(THRESHOLD_LABELS).map(type => {
-                    const pct = Math.round((data[type] ?? 0.50) * 100);
-                    return `<tr>
-                    <td>${THRESHOLD_LABELS[type]}<br>
-                        <span style="font-size:10px;color:#aaa">${type}</span></td>
-                    <td>
-                        <input type="range" min="0" max="100" value="${pct}" id="tr-${type}"
-                            oninput="document.getElementById('tv-${type}').textContent=this.value+'%'">
-                        <span class="threshold-val" id="tv-${type}">${pct}%</span>
-                    </td>
-                </tr>`;
-                }).join('');
-                document.getElementById('thSaveTip').style.display = 'none';
-                document.getElementById('thresholdPanel').classList.add('show');
-                document.getElementById('overlay').classList.add('show');
-            })
-            .catch(() => alert('获取阈值失败，请重试'));
-    }
-
-    function closeThreshold() {
-        document.getElementById('thresholdPanel').classList.remove('show');
-        document.getElementById('overlay').classList.remove('show');
+    function loadThresholds() {
+        fetch('/api/threshold/list').then(r=>r.json()).then(data => {
+            currentThresholds=data;
+            const wrap=document.getElementById('thresholdRows');
+            wrap.innerHTML=Object.keys(THRESHOLD_LABELS).map(type=>{
+                const pct=Math.round((data[type]??0.50)*100);
+                return `<div class="th-row">
+        <div class="th-name">${THRESHOLD_LABELS[type]}<br><span class="th-key">${type}</span></div>
+        <input type="range" class="th-slider" min="0" max="100" value="${pct}" id="tr-${type}"
+          oninput="document.getElementById('tv-${type}').textContent=this.value+'%'">
+        <span class="th-val" id="tv-${type}">${pct}%</span>
+      </div>`;
+            }).join('');
+        }).catch(()=>{
+            document.getElementById('thresholdRows').innerHTML = '<div style="color:var(--text3);font-size:12px;">获取阈值失败</div>';
+        });
     }
 
     function saveThresholds() {
-        const payload = {};
-        Object.keys(THRESHOLD_LABELS).forEach(type => {
-            const slider = document.getElementById('tr-' + type);
-            if (slider) payload[type] = parseInt(slider.value) / 100;
+        const payload={};
+        Object.keys(THRESHOLD_LABELS).forEach(type=>{
+            const slider=document.getElementById('tr-'+type);
+            if (slider) payload[type]=parseInt(slider.value)/100;
         });
-
-        fetch('/api/threshold/update', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify(payload)
-        })
-            .then(r => r.json())
-            .then(data => {
-                if (data.success) {
-                    const tip = document.getElementById('thSaveTip');
-                    tip.style.display = 'inline';
-                    setTimeout(() => {
-                        tip.style.display = 'none';
-                        closeThreshold();
-                        currentThresholds = data.current;
-                        applyFilter();
-                    }, 1500);
-                } else {
-                    alert('保存失败：' + (data.message ?? '未知错误'));
-                }
-            })
-            .catch(() => alert('保存失败，请检查网络'));
+        fetch('/api/threshold/update',{
+            method:'POST', headers:{'Content-Type':'application/json'},
+            body:JSON.stringify(payload)
+        }).then(r=>r.json()).then(data=>{
+            if (data.success) {
+                const tip=document.getElementById('thSaveTip');
+                tip.style.display='inline';
+                currentThresholds=data.current||payload;
+                applyFilter();
+                setTimeout(()=>tip.style.display='none',2500);
+            } else {
+                alert('保存失败：'+(data.message??'未知错误'));
+            }
+        }).catch(()=>alert('保存失败，请检查网络'));
     }
+
+    /* =====================================================
+       初始化
+    ===================================================== */
+    document.addEventListener('DOMContentLoaded', () => {
+        // 读取 Thymeleaf 注入的登录用户名（如有）
+        const usernameEl = document.getElementById('nav-username');
+        // 从 session 中获取用户名（通过隐藏的 Thymeleaf span 传入）
+        const injectedUser = document.getElementById('th-username');
+        if (injectedUser) usernameEl.textContent = injectedUser.textContent;
+
+        // 加载阈值（后台静默加载，供列表过滤使用）
+        fetch('/api/threshold/list').then(r=>r.json()).then(d=>{ currentThresholds=d; }).catch(()=>{});
+
+        // 加载概览数据
+        loadDashboard();
+
+        // 加载记录列表数据（供地图和记录页共用）
+        loadPage(0);
+
+        // 处理 URL hash 路由
+        const hash = location.hash.replace('#','');
+        if (hash && document.getElementById('page-'+hash)) {
+            const navEl = document.querySelector(`.nav-item[data-page="${hash}"]`);
+            switchPage(hash, navEl);
+        }
+    });
+
+    window.addEventListener('resize', ()=>{
+        if (!statsCache) return;
+        if (currentPageId==='dash') {
+            drawPie(document.getElementById('dashPieCanvas'),  statsCache.typeDistribution||{});
+            drawLine(document.getElementById('dashLineCanvas'), statsCache.dailyTrend||{}, 140);
+        }
+        if (currentPageId==='analytics') {
+            drawPie(document.getElementById('anlPieCanvas'),  statsCache.typeDistribution||{}, true);
+            drawLine(document.getElementById('anlLineCanvas'), statsCache.dailyTrend||{}, 200);
+        }
+    });
 </script>
+
+<!-- Thymeleaf 注入登录用户名（隐藏） -->
+<span id="th-username" th:text="${session.loginUser}" style="display:none;"></span>
+
 </body>
 </html>

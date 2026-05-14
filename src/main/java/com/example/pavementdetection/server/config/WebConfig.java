@@ -1,6 +1,5 @@
 package com.example.pavementdetection.server.config;
 
-
 import com.example.pavementdetection.server.interceptor.AppTokenInterceptor;
 import com.example.pavementdetection.server.interceptor.LoginInterceptor;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -8,30 +7,38 @@ import org.springframework.context.annotation.Configuration;
 import org.springframework.web.servlet.config.annotation.InterceptorRegistry;
 import org.springframework.web.servlet.config.annotation.WebMvcConfigurer;
 
-
 @Configuration
 public class WebConfig implements WebMvcConfigurer {
 
-    @Autowired private LoginInterceptor loginInterceptor;
+    @Autowired
+    private LoginInterceptor loginInterceptor;
+
     @Autowired
     private AppTokenInterceptor appTokenInterceptor;
 
     @Override
     public void addInterceptors(InterceptorRegistry registry) {
 
-        // ① Web 管理平台拦截器（只管页面路由，不管 /api/**）
+        // Web Session 拦截器：只管页面路由，排除所有 /api/**
         registry.addInterceptor(loginInterceptor)
                 .addPathPatterns("/**")
                 .excludePathPatterns(
-                        "/login", "/register", "/logout",
-                        "/api/**",        // ← 所有 API 请求交给 AppTokenInterceptor
+                        "/login", "/register",
+                        "/api/**",          // ← 关键：排除全部 API
                         "/images/**",
                         "/css/**", "/js/**", "/favicon.ico"
                 );
 
-        // ② APP Token 拦截器
+        // APP Token 拦截器：只拦真正需要 Token 的接口
         registry.addInterceptor(appTokenInterceptor)
-                .addPathPatterns("/api/detection/**", "/api/auth/changePassword", "/api/auth/account")
-                .excludePathPatterns("/api/auth/register", "/api/auth/login");
+                .addPathPatterns(
+                        "/api/detection/upload",          // APP 上传
+                        "/api/auth/changePassword",       // 改密
+                        "/api/auth/account"               // 注销
+                )
+                .excludePathPatterns(
+                        "/api/auth/register",
+                        "/api/auth/login"
+                );
     }
 }
